@@ -54,6 +54,30 @@ template.innerHTML = `
 
 // ELEMENT ////////////////////////////////////////////////////////////////////
 
+/**
+ * Custom element for displaying current track info in the playbar.
+ *
+ * Shows the album art, track title, and "Album, Artist" subtitle for the
+ * currently playing track. Parses all metadata from the track URL using
+ * `parseTrackMetadataFromUrlText` — no additional attributes required.
+ *
+ * @customElement track-info-custom-element
+ *
+ * @example
+ * ```html
+ * <track-info-custom-element
+ *   data-track-url="https://bucket.s3.amazonaws.com/Artist/Album/01__Track.mp3">
+ * </track-info-custom-element>
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-track-url` (string)
+ * Full URL to the audio file. Expected format:
+ * `{baseUrl}/{artistName}/{albumName}/{trackNumber}__{trackName}.{ext}`.
+ * Changing this attribute updates the displayed track info immediately.
+ * An empty or missing value renders nothing.
+ */
 export class TrackInfoCustomElement extends HTMLElement {
   static observedAttributes = [
     "data-track-url",

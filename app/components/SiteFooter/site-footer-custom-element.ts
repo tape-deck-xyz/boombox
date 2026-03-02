@@ -66,16 +66,30 @@ const template = buildTemplate();
  * muted style that blends into the dark app background.
  *
  * The `label` and `tagline` attributes accept plain text or a string
- * containing `<a>` tags for inline links. Values come from the server
- * template (not user input), so `innerHTML` is safe here.
+ * containing anchor tags for inline links. Values come from the server
+ * template (not user input), so setting innerHTML is safe here.
+ * All links rendered inside the footer are automatically given
+ * `target="_blank"` and `rel="noopener noreferrer"`.
+ *
+ * @customElement site-footer-custom-element
  *
  * @example
  * ```html
  * <site-footer-custom-element
- *   label='<a href="https://tape-deck.xyz/boombox">BoomBox</a>'
- *   tagline='Built by <a href="https://tape-deck.xyz">tape-deck.xyz</a>. Open source under MIT.'
- * ></site-footer-custom-element>
+ *   label="BoomBox"
+ *   tagline="Open source under MIT.">
+ * </site-footer-custom-element>
  * ```
+ *
+ * ## Attributes
+ *
+ * ### `label` (string)
+ * Left-side text. Accepts plain text or a string containing anchor tags.
+ * Rendered as the left column of the footer row.
+ *
+ * ### `tagline` (string)
+ * Right-side text. Accepts plain text or a string containing anchor tags.
+ * Rendered as the right column of the footer row.
  */
 export class SiteFooterCustomElement extends HTMLElement {
   static observedAttributes = ["label", "tagline"];

@@ -281,12 +281,11 @@ dialogTemplate.innerHTML = `
 /**
  * Custom element for the upload dialog.
  *
- * Provides a trigger button that opens a modal for selecting and uploading files.
- * The modal is rendered into the element's shadow root (IDs stay scoped).
- * Before submit, selected files are listed with name and size; users can remove
- * individual files. ID3 metadata (artist, album, title, track number, cover art)
- * is loaded per file and shown when available. Submit sends the current list.
- * Supports optional trigger styling via the `class` and `buttonStyle` attributes.
+ * Provides a trigger button that opens a native `<dialog>` modal for selecting
+ * and uploading audio files. The dialog is appended to the shadow root so IDs
+ * stay scoped. Before submit, selected files are listed with name, size, and
+ * editable ID3 metadata (artist, album, title, track number, cover art). Each
+ * file row can be removed before upload. On successful submit, redirects to `/`.
  *
  * @customElement upload-dialog-custom-element
  *
@@ -294,6 +293,22 @@ dialogTemplate.innerHTML = `
  * ```html
  * <upload-dialog-custom-element></upload-dialog-custom-element>
  * ```
+ *
+ * @example
+ * ```html
+ * <upload-dialog-custom-element
+ *   buttonStyle="color: white; font-size: 1.5rem;">
+ * </upload-dialog-custom-element>
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `buttonStyle` (string)
+ * Inline CSS applied directly to the trigger button element. Use to override
+ * the default button appearance (size, color, etc.).
+ *
+ * ### `class` (string)
+ * CSS class list applied to the host element. Standard HTML attribute.
  */
 export class UploadDialogCustomElement extends HTMLElement {
   static observedAttributes = ["class", "buttonStyle"];

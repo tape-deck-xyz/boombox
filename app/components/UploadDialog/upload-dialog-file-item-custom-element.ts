@@ -147,10 +147,52 @@ template.innerHTML = `
 /**
  * Custom element for a single file row in the upload dialog file list.
  *
- * Displays file name, size, and loads ID3 metadata. Dispatches `upload-dialog-remove`
- * when the remove button is clicked. Used only by upload-dialog-custom-element.
+ * Displays the file name, size, and editable ID3 metadata fields (artist,
+ * album, title, track number, cover art). Metadata is loaded asynchronously
+ * from the file's ID3 tags. Fields are pre-populated with tag values and
+ * remain editable; the `metadata` property always reflects the current
+ * field values. Dispatches `upload-dialog-remove` when the remove button
+ * is clicked. Intended for use only inside `upload-dialog-custom-element`.
  *
  * @customElement upload-dialog-file-item
+ *
+ * @example
+ * ```typescript
+ * const item = document.createElement('upload-dialog-file-item')
+ *   as UploadDialogFileItemCustomElement;
+ * item.file = selectedFile;
+ * fileList.appendChild(item);
+ *
+ * // Wait for ID3 metadata to finish loading before reading it
+ * await item.metadataReady;
+ * console.log(item.metadata); // { artist, album, title, trackNumber }
+ * ```
+ *
+ * ## Properties
+ *
+ * ### `file` (File | null)
+ * Set this property to populate the row. Setting a new file resets metadata
+ * and starts a fresh ID3 load. Setting `null` clears the row.
+ *
+ * ### `metadataReady` (Promise\<void\>)
+ * Resolves when ID3 metadata has finished loading (or failed). Await this
+ * before reading `metadata` to ensure values are populated.
+ *
+ * ### `metadata` (ID3TagsEditable)
+ * Current editable metadata reflecting the user's input. Returns a copy.
+ *
+ * ### `fileKey` (string)
+ * Stable identifier for the file: `"{name}-{size}-{lastModified}"`.
+ *
+ * ## Events
+ *
+ * ### `upload-dialog-remove`
+ * Dispatched when the remove button is clicked. Bubbles.
+ *
+ * **Event detail:**
+ * ```typescript
+ * { fileKey: string } // Stable key identifying the file to remove
+ * ```
  */
 export class UploadDialogFileItemCustomElement extends HTMLElement {
   #file: File | null = null;

@@ -117,18 +117,52 @@ template.innerHTML = `
 /**
  * Custom element that displays a playlist button with a popup showing remaining tracks.
  *
- * This element manages the state and UI for displaying remaining tracks in an album.
- * It loads tracks asynchronously based on the album URL and current track ID attributes,
- * and dispatches custom 'select' events when a track is chosen.
+ * Renders an icon button. When clicked, reveals a popover listing the remaining
+ * tracks in the album (tracks after the current one). Clicking a track in the
+ * list dispatches a `select` event with the track details. The popover closes
+ * when clicking outside the element.
  *
  * @customElement playlist-custom-element
  *
  * @example
  * ```html
  * <playlist-custom-element
- *   data-album-url="/api/albums/123"
- *   data-current-track-id="track-456">
+ *   data-album-url="https://bucket.s3.amazonaws.com/Artist/Album"
+ *   data-current-track-id="https://bucket.s3.amazonaws.com/Artist/Album/01__Track.mp3">
  * </playlist-custom-element>
+ * ```
+ *
+ * @example
+ * ```typescript
+ * const playlist = document.querySelector('playlist-custom-element');
+ * playlist.addEventListener('select', (e: CustomEvent) => {
+ *   const { url, title, trackNum } = e.detail;
+ *   // Handle track selection
+ * });
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-album-url` (string)
+ * Base S3 URL for the album. Used to fetch remaining tracks via
+ * `getRemainingAlbumTracks`. The button is disabled when this attribute is absent.
+ *
+ * ### `data-current-track-id` (string)
+ * URL of the currently playing track. Used to determine which tracks are
+ * "remaining" (i.e., after the current track in the album).
+ *
+ * ## Events
+ *
+ * ### `select`
+ * Dispatched when the user clicks a track in the playlist popup. Bubbles.
+ *
+ * **Event detail:**
+ * ```typescript
+ * {
+ *   url: string;      // Track file URL
+ *   title: string;    // Track display title
+ *   trackNum: number; // Track number in the album
+ * }
  * ```
  */
 export class PlaylistCustomElement extends HTMLElement {

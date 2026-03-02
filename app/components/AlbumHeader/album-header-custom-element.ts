@@ -153,7 +153,28 @@ const albumHeaderStyles = `
 `;
 
 /**
- * Custom element for the header on an album page.
+ * Custom element for the sticky, shrinking header on an album page.
+ *
+ * Displays album art, title, and artist. The header shrinks as the user scrolls
+ * down using an `IntersectionObserver` on a sentinel element. The background
+ * gradient is derived from the album art's dominant colors via `extractColors`.
+ *
+ * @customElement album-header-custom-element
+ *
+ * @example
+ * ```html
+ * <album-header-custom-element
+ *   data-album-url="https://bucket.s3.amazonaws.com/ArtistName/AlbumName">
+ * </album-header-custom-element>
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-album-url` (string, required)
+ * Full S3 URL to the album directory. Must end with `/{artistId}/{albumId}`.
+ * Used to derive the artist and album names for display, and to fetch the first
+ * track for album art and gradient color extraction.
+ * Throws at construction time if missing or malformed.
  */
 export class AlbumHeaderCustomElement extends HTMLElement {
   static observedAttributes = ["data-album-url"];
