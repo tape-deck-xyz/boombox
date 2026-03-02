@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+## [0.7.0] - 2026-03-02
+
+### e2e
+* lock viewport size and fix shadow DOM selector syntax
+
+### site-footer
+* add inline link support with new-tab behaviour
+
+### ui
+* add site-footer-custom-element to layout shell
+
+### General
+* apply deno fmt formatting
+* trigger pipeline test
+* add lint and format check job to CircleCI workflow
+* add CLAUDE.md project instructions
+
 ## [0.6.0] - 2026-02-25
 
 ### e2e
