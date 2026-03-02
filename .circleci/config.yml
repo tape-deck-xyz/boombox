@@ -1,4 +1,5 @@
 version: 2.1
+# CI pipeline: build, lint, test, test-e2e, release
 
 jobs:
   build:
