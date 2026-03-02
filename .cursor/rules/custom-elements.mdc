@@ -14,3 +14,17 @@ Key requirements:
 See `app/icons/play/index.ts` and `app/components/AlbumImage/album-image-custom-element.ts` for examples.
 
 Use https://github.com/webcomponents/gold-standard/wiki as a baseline for quality
+
+## JSDoc standard
+
+Every custom element class must have a JSDoc block that includes all of the following:
+
+1. **`@customElement` tag** with the registered HTML tag name
+2. **HTML usage example** (`@example` with a fenced `html` block) showing the element with its key attributes
+3. **TypeScript example** (`@example` with a fenced `typescript` block) for any element that dispatches events or exposes a JS API
+4. **`## Attributes` section** — one `###` subsection per observed attribute, documenting its type, accepted values, and behaviour. Mark required attributes explicitly.
+5. **`## Events` section** — one `###` subsection per dispatched `CustomEvent`, including whether it bubbles/is composed and the full `detail` shape as a fenced `typescript` block
+6. **`## Slots` section** — if the element uses `<slot>` in its template
+7. **`## Properties` section** — if the element exposes a public JS API (getters/setters beyond attributes)
+
+Reference implementation: `app/components/Tracklist/tracklist-item-custom-element.ts`
