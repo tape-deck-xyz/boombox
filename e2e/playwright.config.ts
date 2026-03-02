@@ -27,7 +27,13 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 720 },
+      },
+    },
   ],
   webServer: {
     command: "deno task start:e2e",

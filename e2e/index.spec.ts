@@ -21,8 +21,8 @@ test("index page shows site footer with label and tagline", async ({ page }) => 
   await page.goto("/");
   const footer = page.locator("site-footer-custom-element");
   await expect(footer).toBeAttached({ timeout: 10_000 });
-  const label = footer.locator("pierce/#label");
-  const tagline = footer.locator("pierce/#tagline");
+  const label = footer.locator("#label");
+  const tagline = footer.locator("#tagline");
   await expect(label).toHaveText("BoomBox", { timeout: 5_000 });
   await expect(tagline).toHaveText(
     "Built by tape-deck.xyz. Open source under MIT.",
