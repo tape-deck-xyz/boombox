@@ -14,8 +14,9 @@ export async function getAppName(): Promise<string | undefined> {
   try {
     const denoJsonText = await Deno.readTextFile("deno.json");
     const denoJson = JSON.parse(denoJsonText);
-    cachedAppName =
-      typeof denoJson.name === "string" ? denoJson.name : undefined;
+    cachedAppName = typeof denoJson.name === "string"
+      ? denoJson.name
+      : undefined;
     return cachedAppName;
   } catch (error) {
     console.warn("Failed to read app name from deno.json:", error);

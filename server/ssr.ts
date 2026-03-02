@@ -165,6 +165,10 @@ export function renderLayout(options: RenderLayoutOptions): string {
         <main class="layout-main">
           ${mainContentHtml}
         </main>
+        <site-footer-custom-element
+          label='<a href="https://tape-deck.xyz/boombox">BoomBox</a>'
+          tagline='Built by <a href="https://tape-deck.xyz">tape-deck.xyz</a>. Open source under MIT.'
+        ></site-footer-custom-element>
       </div>
     </div>
     <playbar-custom-element${playbarAttrs}></playbar-custom-element>

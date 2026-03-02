@@ -425,8 +425,7 @@ export class UploadDialogCustomElement extends HTMLElement {
 
     const updateSubmitState = () => {
       if (submitBtn) {
-        const disabled =
-          this.#isSubmitting ||
+        const disabled = this.#isSubmitting ||
           this.#selectedFiles.length === 0 ||
           !allMetadataReady;
         submitBtn.disabled = disabled;

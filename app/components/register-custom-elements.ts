@@ -6,6 +6,7 @@
  * - `<album-header-custom-element>`, `<album-image-custom-element>`
  * - `<nav-link>` — same-origin app navigation with fragment loading
  * - `<playbar-custom-element>`, `<track-info-custom-element>`
+ * - `<site-footer-custom-element>` — subtle page footer
  * - `<tracklist-item-custom-element>`, `<upload-dialog-custom-element>`
  *
  * Can be imported directly in HTML or built with Deno bundle to `build/main.js`.
@@ -17,4 +18,5 @@ import "./NavLink/nav-link-custom-element.ts";
 import "./Layout/PlayBar/playbar-custom-element.ts";
 import "./Layout/PlayBar/track-info-custom-element.ts";
 import "./Tracklist/tracklist-item-custom-element.ts";
+import "./SiteFooter/site-footer-custom-element.ts";
 import "./UploadDialog/upload-dialog-custom-element.ts";

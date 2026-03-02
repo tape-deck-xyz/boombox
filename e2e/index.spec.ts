@@ -16,3 +16,16 @@ test("index page shows Latest section with fixture album", async ({ page }) => {
   await expect(page.getByText("Test Album")).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText("Test Artist")).toBeVisible({ timeout: 5_000 });
 });
+
+test("index page shows site footer with label and tagline", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.locator("site-footer-custom-element");
+  await expect(footer).toBeAttached({ timeout: 10_000 });
+  const label = footer.locator("#label");
+  const tagline = footer.locator("#tagline");
+  await expect(label).toHaveText("BoomBox", { timeout: 5_000 });
+  await expect(tagline).toHaveText(
+    "Built by tape-deck.xyz. Open source under MIT.",
+    { timeout: 5_000 },
+  );
+});
