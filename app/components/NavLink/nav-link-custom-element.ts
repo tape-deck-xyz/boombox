@@ -235,14 +235,32 @@ template.innerHTML = `
 `;
 
 /**
- * Custom element for client-side app navigation. Use href for the route;
- * slot content is the link label.
+ * Custom element for client-side app navigation.
+ *
+ * Renders as an anchor element (via slot content). On click, sends a fragment
+ * request to the server and updates `main`, `document.title`, and head meta
+ * tags from the JSON envelope — no full page reload. Falls back to a full
+ * navigation on error or for non-same-origin URLs. Also handles browser
+ * back/forward via `popstate`.
+ *
+ * @customElement nav-link
  *
  * @example
  * ```html
  * <nav-link href="/">Home</nav-link>
  * <nav-link href="/artists/Artist/albums/Album">Album Name</nav-link>
  * ```
+ *
+ * ## Attributes
+ *
+ * ### `href` (string)
+ * The destination URL. Same-origin paths (starting with `/`) are loaded as
+ * fragments; external URLs fall back to a full navigation.
+ *
+ * ## Slots
+ *
+ * ### (default)
+ * The link label content. Any HTML is accepted.
  */
 export class NavLinkCustomElement extends HTMLElement {
   static observedAttributes = ["href"];

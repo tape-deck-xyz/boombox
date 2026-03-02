@@ -76,19 +76,58 @@ template.innerHTML = `
 // ELEMENT ////////////////////////////////////////////////////////////////////
 
 /**
- * Custom element for player controls.
+ * Custom element for the playbar transport controls (previous, play/pause, next).
+ *
+ * Renders three icon buttons. Dispatches custom events upward when clicked;
+ * the parent `playbar-custom-element` handles the actual playback logic.
+ * The previous and next buttons are disabled when the corresponding track is
+ * unavailable. The play/pause button pulses when paused with a track loaded.
  *
  * @customElement player-controls-custom-element
  *
- * @attributes
- * - `data-play-state` (string | undefined): Play state. Must be the string "playing" or "paused", other values equate to "stopped".
- * - `data-has-previous-track` (string | undefined): Whether the previous track is available.
- * - `data-has-next-track` (string | undefined): Whether the next track is available.
+ * @example
+ * ```html
+ * <player-controls-custom-element
+ *   data-play-state="paused"
+ *   data-has-previous-track="false"
+ *   data-has-next-track="true">
+ * </player-controls-custom-element>
+ * ```
  *
- * @emits
- * - `play-prev` (CustomEvent): Dispatched when the previous track button is clicked (if enabled).
- * - `play-toggle` (CustomEvent): Dispatched when the play/pause button is clicked.
- * - `play-next` (CustomEvent): Dispatched when the next track button is clicked (if enabled).
+ * @example
+ * ```typescript
+ * const controls = document.querySelector('player-controls-custom-element');
+ * controls.addEventListener('play-toggle', () => console.log('toggle'));
+ * controls.addEventListener('play-next', () => console.log('next'));
+ * controls.addEventListener('play-prev', () => console.log('prev'));
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-play-state` (string)
+ * Current play state. `"playing"` shows a pause icon; `"paused"` shows a
+ * pulsing play icon; any other value shows a static play icon.
+ *
+ * ### `data-has-previous-track` (string)
+ * Set to `"true"` to enable the previous track button. Any other value
+ * disables it.
+ *
+ * ### `data-has-next-track` (string)
+ * Set to `"true"` to enable the next track button. Any other value disables it.
+ *
+ * ## Events
+ *
+ * ### `play-prev`
+ * Dispatched when the previous track button is clicked and enabled.
+ * Bubbles and is composed.
+ *
+ * ### `play-toggle`
+ * Dispatched when the play/pause button is clicked. Always dispatched
+ * regardless of current play state. Bubbles and is composed.
+ *
+ * ### `play-next`
+ * Dispatched when the next track button is clicked and enabled.
+ * Bubbles and is composed.
  */
 export class PlayerControlsCustomElement extends HTMLElement {
   static observedAttributes = [

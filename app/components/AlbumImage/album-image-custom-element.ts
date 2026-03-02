@@ -109,6 +109,34 @@ template.innerHTML = `
 
 /**
  * Custom element for an album image.
+ *
+ * Fetches album art from the first track's ID3 tags and renders it as an img
+ * inside a shadow root. Album art is cached by album URL so switching tracks
+ * within the same album does not re-fetch. Silently renders nothing if no art
+ * is found or if the fetch fails.
+ *
+ * @customElement album-image-custom-element
+ *
+ * @example
+ * ```html
+ * <album-image-custom-element
+ *   data-album-url="https://bucket.s3.amazonaws.com/ArtistName/AlbumName">
+ * </album-image-custom-element>
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-album-url` (string)
+ * Full S3 URL to the album directory. Must end with `/{artistId}/{albumId}`.
+ * Changing this attribute triggers a new image load. If the same album URL is
+ * already loaded, the image is not re-fetched.
+ *
+ * ### `class` (string)
+ * CSS class list forwarded to the inner img element so external styles apply
+ * through the shadow DOM boundary.
+ *
+ * ### `style` (string)
+ * Inline styles forwarded to the inner img element.
  */
 export class AlbumImageCustomElement extends HTMLElement {
   static observedAttributes = ["data-album-url", "class"];

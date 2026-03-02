@@ -63,16 +63,51 @@ template.innerHTML = `
 
 /**
  * Custom element for track progress and seeking.
- * Renders a thin scrub bar; click or drag to seek.
+ *
+ * Renders a thin scrub bar that fills proportionally to `data-current-time /
+ * data-duration`. Supports click, drag (pointer capture), and keyboard
+ * (Arrow keys, Home, End) seeking. Dispatches a `seek` event with the
+ * requested time in seconds. The bar expands slightly on hover/focus for
+ * easier interaction.
  *
  * @customElement progress-indicator-custom-element
  *
- * @attributes
- * - `data-current-time` (string): Current playback time in seconds.
- * - `data-duration` (string): Total duration in seconds. Use "0" or omit when unknown.
+ * @example
+ * ```html
+ * <progress-indicator-custom-element
+ *   data-current-time="42"
+ *   data-duration="180">
+ * </progress-indicator-custom-element>
+ * ```
  *
- * @events
- * - `seek` (CustomEvent): Dispatched when the user seeks. detail.time is the requested time in seconds.
+ * @example
+ * ```typescript
+ * const progress = document.querySelector('progress-indicator-custom-element');
+ * progress.addEventListener('seek', (e: CustomEvent) => {
+ *   audio.currentTime = e.detail.time;
+ * });
+ * ```
+ *
+ * ## Attributes
+ *
+ * ### `data-current-time` (string)
+ * Current playback position in seconds. Parsed as a float; invalid or missing
+ * values are treated as `0`.
+ *
+ * ### `data-duration` (string)
+ * Total track duration in seconds. Parsed as a float; `0` or invalid values
+ * disable seeking and render an empty bar.
+ *
+ * ## Events
+ *
+ * ### `seek`
+ * Dispatched when the user clicks, drags, or uses keyboard to seek.
+ * Bubbles and is composed.
+ *
+ * **Event detail:**
+ * ```typescript
+ * { time: number } // Requested playback position in seconds
+ * ```
  */
 export class ProgressIndicatorCustomElement extends HTMLElement {
   static observedAttributes = ["data-current-time", "data-duration"];
