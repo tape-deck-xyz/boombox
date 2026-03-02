@@ -41,7 +41,10 @@ Deno.test("SiteFooterCustomElement - creates shadow DOM with footer element", as
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element");
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+  );
 
   assertExists(el.shadowRoot);
   assertExists(el.shadowRoot.querySelector("footer"));
@@ -51,9 +54,13 @@ Deno.test("SiteFooterCustomElement - renders label attribute into #label span", 
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element", {
-    label: "BoomBox",
-  });
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      label: "BoomBox",
+    },
+  );
 
   const labelEl = getLabelEl(el);
   assertExists(labelEl);
@@ -64,23 +71,34 @@ Deno.test("SiteFooterCustomElement - renders tagline attribute into #tagline spa
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element", {
-    tagline: "Built by tape-deck.xyz. Open source under MIT.",
-  });
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      tagline: "Built by tape-deck.xyz. Open source under MIT.",
+    },
+  );
 
   const taglineEl = getTaglineEl(el);
   assertExists(taglineEl);
-  assertEquals(taglineEl.textContent, "Built by tape-deck.xyz. Open source under MIT.");
+  assertEquals(
+    taglineEl.textContent,
+    "Built by tape-deck.xyz. Open source under MIT.",
+  );
 });
 
 Deno.test("SiteFooterCustomElement - renders both label and tagline together", async () => {
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element", {
-    label: "BoomBox",
-    tagline: "Built by tape-deck.xyz. Open source under MIT.",
-  });
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      label: "BoomBox",
+      tagline: "Built by tape-deck.xyz. Open source under MIT.",
+    },
+  );
 
   assertEquals(getLabelEl(el)?.textContent, "BoomBox");
   assertEquals(
@@ -93,7 +111,10 @@ Deno.test("SiteFooterCustomElement - renders empty strings when attributes are a
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element");
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+  );
 
   assertEquals(getLabelEl(el)?.textContent, "");
   assertEquals(getTaglineEl(el)?.textContent, "");
@@ -103,9 +124,13 @@ Deno.test("SiteFooterCustomElement - updates label when attribute changes", asyn
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element", {
-    label: "Initial",
-  });
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      label: "Initial",
+    },
+  );
 
   assertEquals(getLabelEl(el)?.textContent, "Initial");
 
@@ -117,9 +142,13 @@ Deno.test("SiteFooterCustomElement - updates tagline when attribute changes", as
   setup();
   await import("./site-footer-custom-element.ts");
 
-  const el = createCustomElement(linkedomDocument, "site-footer-custom-element", {
-    tagline: "Original tagline.",
-  });
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      tagline: "Original tagline.",
+    },
+  );
 
   assertEquals(getTaglineEl(el)?.textContent, "Original tagline.");
 

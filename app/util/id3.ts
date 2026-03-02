@@ -33,13 +33,12 @@ const convertToJpeg = async (
   }
 
   // Ensure we have a proper ArrayBuffer for Blob (not SharedArrayBuffer)
-  const arrayBuffer =
-    imageData.buffer instanceof ArrayBuffer
-      ? imageData.buffer.slice(
-          imageData.byteOffset,
-          imageData.byteOffset + imageData.byteLength,
-        )
-      : new ArrayBuffer(imageData.length);
+  const arrayBuffer = imageData.buffer instanceof ArrayBuffer
+    ? imageData.buffer.slice(
+      imageData.byteOffset,
+      imageData.byteOffset + imageData.byteLength,
+    )
+    : new ArrayBuffer(imageData.length);
   if (!(imageData.buffer instanceof ArrayBuffer)) {
     new Uint8Array(arrayBuffer).set(imageData);
   }
@@ -128,8 +127,9 @@ export const extractCoverImage = async (
       format: "image/jpeg",
     };
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error
+      ? error.message
+      : "Unknown error";
     throw new Error(`Failed to extract cover image: ${errorMessage}`);
   }
 };
@@ -159,7 +159,8 @@ export const getID3Tags = async (file: Uint8Array): Promise<ID3Tags> => {
     }
 
     const contents_in_base64 = btoa(binaryString);
-    const withPrefix = `data:${imageMetadata.format};base64,${contents_in_base64}`;
+    const withPrefix =
+      `data:${imageMetadata.format};base64,${contents_in_base64}`;
     image = withPrefix;
   }
 

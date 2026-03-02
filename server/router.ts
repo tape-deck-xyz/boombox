@@ -93,8 +93,9 @@ export class Router {
           return await route.handler(req, params);
         } catch (error) {
           console.error("Route handler error:", error);
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
+          const errorMessage = error instanceof Error
+            ? error.message
+            : "Unknown error";
           const errorStack = error instanceof Error ? error.stack : undefined;
           console.error("Error stack:", errorStack);
           return new Response(`Internal Server Error: ${errorMessage}`, {
