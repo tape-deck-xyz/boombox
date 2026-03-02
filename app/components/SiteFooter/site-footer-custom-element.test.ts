@@ -155,3 +155,70 @@ Deno.test("SiteFooterCustomElement - updates tagline when attribute changes", as
   el.setAttribute("tagline", "New tagline.");
   assertEquals(getTaglineEl(el)?.textContent, "New tagline.");
 });
+
+Deno.test("SiteFooterCustomElement - renders inline anchor in label attribute", async () => {
+  setup();
+  await import("./site-footer-custom-element.ts");
+
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      label: `<a href="https://tape-deck.xyz/boombox">BoomBox</a>`,
+    },
+  );
+
+  const labelEl = getLabelEl(el);
+  assertExists(labelEl);
+  const anchor = labelEl.querySelector("a");
+  assertExists(anchor);
+  assertEquals(anchor.getAttribute("href"), "https://tape-deck.xyz/boombox");
+  assertEquals(anchor.textContent, "BoomBox");
+});
+
+Deno.test("SiteFooterCustomElement - renders partial inline anchor in tagline attribute", async () => {
+  setup();
+  await import("./site-footer-custom-element.ts");
+
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      tagline:
+        `Built by <a href="https://tape-deck.xyz">tape-deck.xyz</a>. Open source under MIT.`,
+    },
+  );
+
+  const taglineEl = getTaglineEl(el);
+  assertExists(taglineEl);
+  const anchor = taglineEl.querySelector("a");
+  assertExists(anchor);
+  assertEquals(anchor.getAttribute("href"), "https://tape-deck.xyz");
+  assertEquals(anchor.textContent, "tape-deck.xyz");
+  assertEquals(
+    taglineEl.textContent,
+    "Built by tape-deck.xyz. Open source under MIT.",
+  );
+});
+
+Deno.test("SiteFooterCustomElement - all anchors open in a new tab", async () => {
+  setup();
+  await import("./site-footer-custom-element.ts");
+
+  const el = createCustomElement(
+    linkedomDocument,
+    "site-footer-custom-element",
+    {
+      label: `<a href="https://tape-deck.xyz/boombox">BoomBox</a>`,
+      tagline:
+        `Built by <a href="https://tape-deck.xyz">tape-deck.xyz</a>. Open source under MIT.`,
+    },
+  );
+
+  const anchors = el.shadowRoot!.querySelectorAll("a");
+  assertEquals(anchors.length, 2);
+  for (const a of anchors) {
+    assertEquals(a.getAttribute("target"), "_blank");
+    assertEquals(a.getAttribute("rel"), "noopener noreferrer");
+  }
+});

@@ -32,6 +32,14 @@ function buildTemplate(): HTMLTemplateElement {
       letter-spacing: 0.03em;
       line-height: 1.4;
     }
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
   `;
 
   const footer = document.createElement("footer");
@@ -57,11 +65,15 @@ const template = buildTemplate();
  * Site footer custom element. Displays a label and tagline in a subtle,
  * muted style that blends into the dark app background.
  *
+ * The `label` and `tagline` attributes accept plain text or a string
+ * containing `<a>` tags for inline links. Values come from the server
+ * template (not user input), so `innerHTML` is safe here.
+ *
  * @example
  * ```html
  * <site-footer-custom-element
- *   label="BoomBox"
- *   tagline="Built by tape-deck.xyz. Open source under MIT."
+ *   label='<a href="https://tape-deck.xyz/boombox">BoomBox</a>'
+ *   tagline='Built by <a href="https://tape-deck.xyz">tape-deck.xyz</a>. Open source under MIT.'
  * ></site-footer-custom-element>
  * ```
  */
@@ -89,8 +101,13 @@ export class SiteFooterCustomElement extends HTMLElement {
   #render(): void {
     const labelEl = this.shadowRoot!.querySelector("#label");
     const taglineEl = this.shadowRoot!.querySelector("#tagline");
-    if (labelEl) labelEl.textContent = this.getAttribute("label") ?? "";
-    if (taglineEl) taglineEl.textContent = this.getAttribute("tagline") ?? "";
+    // Values originate from the server template, not user input — innerHTML is safe.
+    if (labelEl) labelEl.innerHTML = this.getAttribute("label") ?? "";
+    if (taglineEl) taglineEl.innerHTML = this.getAttribute("tagline") ?? "";
+    for (const a of this.shadowRoot!.querySelectorAll("a")) {
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener noreferrer");
+    }
   }
 }
 
