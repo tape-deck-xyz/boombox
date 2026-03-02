@@ -64,6 +64,74 @@ protected routes return 500. See [Admin authentication](#admin-authentication).
 
 ---
 
+## S3 bucket setup
+
+BoomBox requires an S3 bucket for storing audio files and cover images. Below
+is the minimal configuration needed.
+
+### Bucket policy
+
+The bucket must allow public reads (for serving audio/images) and public
+listing (so the server can enumerate albums and tracks):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+    },
+    {
+      "Sid": "PublicListBucket",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME"
+    }
+  ]
+}
+```
+
+Replace `YOUR-BUCKET-NAME` with the value of your `STORAGE_BUCKET` env var.
+
+> **Note**: `s3:ListBucket` being public means anyone can enumerate your
+> bucket's contents. This is intentional for a public music library.
+
+### CORS configuration
+
+The browser fetches audio and cover images directly from S3, so CORS must be
+enabled:
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": ["Content-Length", "ETag"]
+  }
+]
+```
+
+> **Note**: Uploads are performed server-side (the Deno server calls S3
+> directly using your AWS credentials), so `PUT`/`POST` methods are not
+> required in the CORS policy.
+
+### IAM permissions
+
+The AWS credentials in your `.env` (`AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY`) need the following permissions on the bucket:
+
+- `s3:PutObject` — upload audio files and cover images
+- `s3:GetObject` — read objects (e.g. for cover image extraction)
+- `s3:ListBucket` — list albums and tracks
+- `s3:HeadObject` — check whether a cover image already exists before uploading
+
+---
+
 ## Admin authentication
 
 Only **GET `/admin`** and **POST `/`** (upload) require auth and may return 401.
@@ -408,7 +476,7 @@ Static assets: `/build/*`, `/assets/*` (if present), `/favicon.ico`, `/app.css`.
 | Client bundle not found   | Run `deno task build` so `build/main.js` exists.             |
 | 500 on `/admin` or upload | Set both `ADMIN_USER` and `ADMIN_PASS` in `.env`.            |
 | Import errors             | Use `.ts` / `.tsx` extensions in imports for Deno.           |
-| S3 errors                 | Check `AWS_*` and `STORAGE_*` in `.env` and IAM permissions. |
+| S3 errors                 | Check `AWS_*` and `STORAGE_*` in `.env`; see [S3 bucket setup](#s3-bucket-setup) for required bucket policy, CORS, and IAM permissions. |
 
 ---
 
