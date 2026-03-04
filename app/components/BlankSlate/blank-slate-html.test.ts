@@ -12,7 +12,7 @@ Deno.test("blankSlateHtml with isAdmin true includes admin copy and CTA", () => 
   assertStringIncludes(html, "musical-note-icon");
   assertStringIncludes(
     html,
-    'onclick="document.dispatchEvent(new CustomEvent(\'upload-dialog-open\'))"',
+    "onclick=\"document.dispatchEvent(new CustomEvent('upload-dialog-open'))\"",
     "admin CTA should open upload dialog on click",
   );
 });
