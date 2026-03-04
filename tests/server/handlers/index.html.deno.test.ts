@@ -1,10 +1,30 @@
 /** @file Tests for index page route handler */
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { getUploadedFiles } from "../../../app/util/s3.server.ts";
 import { handleIndexHtml } from "../../../server/handlers/index.html.ts";
 import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "secret";
+
+function mockFilesWithAlbum(): void {
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return Promise.resolve({});
+  });
+}
 
 function setupStorageEnv(): void {
   Deno.env.set("AWS_ACCESS_KEY_ID", "test-key");
@@ -107,7 +127,11 @@ Deno.test("Index handler returns JSON fragment when X-Requested-With fetch", asy
   assertEquals(typeof body.html, "string");
   assertEquals(Array.isArray(body.meta), true);
   assertEquals(body.html.includes("<!DOCTYPE html"), false);
-  assertStringIncludes(body.html, "Latest");
+  assertStringIncludes(
+    body.html,
+    "Nothing here yet",
+    "empty storage shows blank slate for non-admin",
+  );
 });
 
 Deno.test("Index handler returns full HTML without app name header when no fragment", async () => {
@@ -131,10 +155,52 @@ Deno.test("Index handler returns full HTML without app name header when no fragm
   );
   const html = await response.text();
   assertStringIncludes(html, "<!DOCTYPE html");
-  assertStringIncludes(html, "Latest");
+  assertStringIncludes(
+    html,
+    "Nothing here yet",
+    "empty storage shows blank slate for non-admin",
+  );
   assertEquals(
     html.includes('nav-link href="/"'),
     false,
     "Should not include app name header",
   );
+});
+
+Deno.test("Index handler shows blank slate with admin copy when empty and admin", async () => {
+  setupStorageEnv();
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({ Contents: [], IsTruncated: false });
+    }
+    return Promise.resolve({});
+  });
+
+  const req = new Request("http://localhost:8000/", {
+    headers: { Authorization: `Basic ${globalThis.btoa(`${ADMIN_USER}:${ADMIN_PASS}`)}` },
+  });
+  Deno.env.set("ADMIN_USER", ADMIN_USER);
+  Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+
+  const response = await handleIndexHtml(req, {});
+  const html = await response.text();
+
+  assertStringIncludes(html, "No albums yet");
+  assertStringIncludes(html, "Upload your first album to get started.");
+  assertStringIncludes(html, "blank-slate-upload");
+});
+
+Deno.test("Index handler shows Latest section when albums exist", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  await getUploadedFiles(true);
+
+  const req = new Request("http://localhost:8000/");
+  const response = await handleIndexHtml(req, {});
+
+  assertEquals(response.status, 200);
+  const html = await response.text();
+  assertStringIncludes(html, "Latest");
 });

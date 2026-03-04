@@ -187,6 +187,32 @@ Deno.test(
 );
 
 Deno.test(
+  "UploadDialogCustomElement - open() shows dialog programmatically",
+  async () => {
+    setupDOMEnvironment();
+    await import("./upload-dialog-custom-element.ts");
+
+    const el = createUploadDialog() as HTMLElement & { open: () => void };
+    el.open();
+    const dialog = getDialog(el);
+    assertExists(dialog, "dialog should exist after open()");
+  },
+);
+
+Deno.test(
+  "UploadDialogCustomElement - upload-dialog-open event opens dialog",
+  async () => {
+    setupDOMEnvironment();
+    await import("./upload-dialog-custom-element.ts");
+
+    const el = createUploadDialog();
+    document.dispatchEvent(new CustomEvent("upload-dialog-open"));
+    const dialog = getDialog(el);
+    assertExists(dialog, "dialog should exist after upload-dialog-open event");
+  },
+);
+
+Deno.test(
   "UploadDialogCustomElement - dialog close removes it from shadow root",
   async () => {
     setupDOMEnvironment();

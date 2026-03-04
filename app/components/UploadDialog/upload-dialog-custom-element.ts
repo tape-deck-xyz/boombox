@@ -325,11 +325,17 @@ export class UploadDialogCustomElement extends HTMLElement {
     this.shadowRoot!.appendChild(template.content.cloneNode(true));
   }
 
+  #onUploadDialogOpen = () => {
+    this.open();
+  };
+
   connectedCallback() {
     const trigger = this.shadowRoot!.getElementById("trigger");
     if (trigger) {
       trigger.addEventListener("click", this.#onTriggerClick);
     }
+
+    document.addEventListener("upload-dialog-open", this.#onUploadDialogOpen);
 
     if (trigger && this.hasAttribute("buttonStyle")) {
       const buttonStyle = this.getAttribute("buttonStyle");
@@ -344,6 +350,10 @@ export class UploadDialogCustomElement extends HTMLElement {
     if (trigger) {
       trigger.removeEventListener("click", this.#onTriggerClick);
     }
+    document.removeEventListener(
+      "upload-dialog-open",
+      this.#onUploadDialogOpen,
+    );
     this.#close();
   }
 
@@ -367,6 +377,14 @@ export class UploadDialogCustomElement extends HTMLElement {
     this.#isSubmitting = false;
     this.#renderDialog();
   };
+
+  /**
+   * Opens the upload dialog programmatically.
+   * Use this when another UI element (e.g. blank slate CTA) should trigger the dialog.
+   */
+  open(): void {
+    this.#onTriggerClick();
+  }
 
   /** Hide modal and cleanup. Called from dialog 'close' event (Escape, close button, backdrop). */
   #close() {

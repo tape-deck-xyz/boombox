@@ -34,6 +34,9 @@ function defaultSendBehavior(command: unknown): Promise<unknown> {
     return Promise.reject(err);
   }
   if (name === "ListObjectsV2Command" && Deno.env.get("E2E_MODE") === "1") {
+    if (Deno.env.get("E2E_EMPTY") === "1") {
+      return Promise.resolve({ Contents: [], IsTruncated: false });
+    }
     return Promise.resolve({
       Contents: E2E_FIXTURE_KEYS,
       IsTruncated: false,

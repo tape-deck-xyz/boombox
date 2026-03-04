@@ -12,6 +12,7 @@
  * Can be imported directly in HTML or built with Deno bundle to `build/main.js`.
  */
 
+import "../icons/musical-note/index.ts";
 import "./AlbumHeader/album-header-custom-element.ts";
 import "./AlbumImage/album-image-custom-element.ts";
 import "./NavLink/nav-link-custom-element.ts";

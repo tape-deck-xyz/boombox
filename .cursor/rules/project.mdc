@@ -29,6 +29,11 @@ This codebase uses a custom HTML element approach to building UIs.
 
 This codebase uses icons based on svg from https://heroicons.com
 
+When adding a heroicon, verify the SVG path matches the official source before
+claiming work is done. Fetch from unpkg (e.g.
+`https://unpkg.com/@heroicons/react@2.1.1/24/outline/IconNameIcon.js`) and
+compare the `d` attribute. Do not rely on memory or browser MCP for localhost.
+
 The codebase uses standard CSS, no Tailwind classes.
 
 Any global styling (eg: typography, spacing, utility classes used in multiple places) should be kept in app.css
