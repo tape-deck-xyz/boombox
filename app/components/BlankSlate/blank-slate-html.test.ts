@@ -10,6 +10,11 @@ Deno.test("blankSlateHtml with isAdmin true includes admin copy and CTA", () => 
   assertStringIncludes(html, "blank-slate-cta");
   assertStringIncludes(html, "Upload album");
   assertStringIncludes(html, "musical-note-icon");
+  assertStringIncludes(
+    html,
+    'onclick="document.dispatchEvent(new CustomEvent(\'upload-dialog-open\'))"',
+    "admin CTA should open upload dialog on click",
+  );
 });
 
 Deno.test("blankSlateHtml with isAdmin false includes non-admin copy and no CTA", () => {

@@ -113,7 +113,7 @@ export default function blankSlateHtml(props: BlankSlateProps): string {
   const escapedDescription = escapeHtml(description);
 
   const ctaHtml = isAdmin
-    ? `<button type="button" id="blank-slate-upload" class="blank-slate-cta">Upload album</button>`
+    ? `<button type="button" id="blank-slate-upload" class="blank-slate-cta" onclick="document.dispatchEvent(new CustomEvent('upload-dialog-open'))">Upload album</button>`
     : "";
 
   return `<style>${BLANK_SLATE_STYLES}</style>
