@@ -380,8 +380,12 @@ Tasks: `start:e2e` (server with E2E_MODE + S3 mock), `test:e2e` (Playwright),
 - CircleCI runs the release job only on `main` after tests pass. When a bump is
   required, it updates `deno.json` and `CHANGELOG.md`, updates
   `coverage-baseline.json` with current coverage, commits
-  `chore(release): vX.Y.Z`, creates an annotated tag `vX.Y.Z` with the release
-  notes, and pushes both commit and tag to `main`.
+  `chore(release): vX.Y.Z`, creates branch `release/X.Y.Z`, pushes the branch and
+  annotated tag `vX.Y.Z` with the release notes, opens a PR into `main`, and
+  enables auto-merge. The PR merges automatically once CI passes, satisfying
+  branch protection rules that require changes via pull request. Ensure
+  **Allow auto-merge** is enabled in GitHub repo settings (Settings → General →
+  Pull Requests).
 
 Local dry run (prints next version and release notes preview):
 
