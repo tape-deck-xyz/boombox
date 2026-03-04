@@ -137,6 +137,16 @@ const TRACK_CLICK_SCRIPT = `
     });
   `;
 
+const BLANK_SLATE_SCRIPT = `
+    document.addEventListener("click", (e) => {
+      const btn = e.target && "closest" in e.target ? e.target.closest("#blank-slate-upload") : null;
+      if (btn) {
+        e.preventDefault();
+        document.dispatchEvent(new CustomEvent("upload-dialog-open"));
+      }
+    });
+  `;
+
 /**
  * Render the body content: main slot, PlayBar, optional admin upload button, and scripts.
  * Layout only; no head or document wrapper.
@@ -173,7 +183,8 @@ export function renderLayout(options: RenderLayoutOptions): string {
     </div>
     <playbar-custom-element${playbarAttrs}></playbar-custom-element>
     <script type="module" src="${JS_PATH}"></script>
-    <script>${TRACK_CLICK_SCRIPT}</script>`;
+    <script>${TRACK_CLICK_SCRIPT}</script>
+    <script>${BLANK_SLATE_SCRIPT}</script>`;
 }
 
 /** Props for renderPage (public API for handlers). */

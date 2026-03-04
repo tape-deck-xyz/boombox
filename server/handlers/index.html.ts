@@ -3,6 +3,7 @@ import { isFragmentRequest, renderPage } from "../ssr.ts";
 import { getUploadedFiles } from "../../app/util/s3.server.ts";
 import { getAdminAuthStatus, requireAdminAuth } from "../utils/basicAuth.ts";
 
+import blankSlateHtml from "../../app/components/BlankSlate/blank-slate-html.ts";
 import albumRowWithTitleHtml from "../../app/components/AlbumRow/album-row-with-title-html.ts";
 import { getAlbumIdsByRecent } from "../../app/util/files.ts";
 import pkg from "../../deno.json" with { type: "json" };
@@ -63,13 +64,13 @@ export async function handleIndexHtml(
   //   { id: "The Rolling Stones/Exile On Main St." },
   // ];
 
-  const mainContentHtml = [
-    albumRowWithTitleHtml({
+  const mainContentHtml = recentlyUploadedAlbumIds.length === 0
+    ? blankSlateHtml({ isAdmin })
+    : albumRowWithTitleHtml({
       albumIds: recentlyUploadedAlbumIds,
       files: files,
       title: "Latest",
-    }),
-  ].join("");
+    });
 
   if (isFragmentRequest(req)) {
     const envelope = {

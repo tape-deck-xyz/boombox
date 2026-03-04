@@ -3,4 +3,5 @@
 # (avoids Deno's node compat when invoked via deno task).
 cd "$(dirname "$0")/.."
 export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
-exec npx playwright test --config=e2e/playwright.config.ts "$@"
+npx playwright test --config=e2e/playwright.config.ts "$@" &&
+  npx playwright test --config=e2e/playwright-blank-slate.config.ts "$@"
