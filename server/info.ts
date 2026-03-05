@@ -1,6 +1,6 @@
 /** @file Info endpoint cache - file-based cache for /info JSON payload */
-import type { Files } from "../../app/util/files.ts";
-import { getUploadedFiles } from "../../app/util/s3.server.ts";
+import type { Files } from "../app/util/files.ts";
+import { getUploadedFiles } from "../app/util/s3.server.ts";
 
 /** Path to the info cache file */
 export const INFO_CACHE_PATH = "cache/info.json";

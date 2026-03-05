@@ -1,5 +1,5 @@
 /** @file Info endpoint - returns cached or fresh JSON (contents, timestamp, hostname) */
-import { readInfoCache, regenerateInfoCache } from "../cache/info.ts";
+import { readInfoCache, regenerateInfoCache } from "../info.ts";
 
 /**
  * Handle GET `/info` — returns JSON with contents (files), timestamp, and hostname.

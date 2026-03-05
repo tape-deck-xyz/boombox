@@ -7,7 +7,7 @@
  */
 import type { ID3Tags } from "../../app/util/id3.ts";
 import { getUploadedFiles, handleS3Upload } from "../../app/util/s3.server.ts";
-import { regenerateInfoCache } from "../cache/info.ts";
+import { regenerateInfoCache } from "../info.ts";
 import { requireAdminAuth } from "../utils/basicAuth.ts";
 
 /**
