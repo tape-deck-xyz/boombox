@@ -17,6 +17,7 @@ import {
 } from "./utils/validateStartupConfig.ts";
 import { handleAlbumCover } from "./handlers/album.cover.ts";
 import { handleAlbumHtml } from "./handlers/album.html.ts";
+import { handleInfo } from "./handlers/info.ts";
 import { createLogger } from "../app/util/logger.ts";
 
 // Create logger instance for server
@@ -38,6 +39,7 @@ const router = new Router();
 // App routes (HTML)
 router.add({ pattern: "/", handler: handleIndexHtml, method: "GET" });
 router.add({ pattern: "/admin", handler: handleIndexHtml, method: "GET" });
+router.add({ pattern: "/info", handler: handleInfo, method: "GET" });
 router.add({ pattern: "/", handler: handleUpload, method: "POST" });
 router.add({
   pattern: "/artists/:artistId/albums/:albumId/cover",
