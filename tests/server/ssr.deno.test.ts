@@ -190,6 +190,7 @@ Deno.test("renderPage includes upload dialog for admin requests", () => {
   );
 
   assertStringIncludes(html, "upload-fab");
+  assertStringIncludes(html, "refresh-cache-custom-element");
   assertStringIncludes(html, "upload-dialog-custom-element");
 });
 
@@ -208,6 +209,11 @@ Deno.test("renderPage does not include upload button when not admin", () => {
     html.includes("upload-dialog-custom-element"),
     false,
     "Should not include upload dialog when isAdmin is false",
+  );
+  assertEquals(
+    html.includes("refresh-cache-custom-element"),
+    false,
+    "Should not include refresh cache when isAdmin is false",
   );
 });
 

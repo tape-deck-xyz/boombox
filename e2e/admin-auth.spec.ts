@@ -34,6 +34,9 @@ test("admin with correct credentials logs in and sees upload button", async ({ b
     await expect(
       page.getByRole("button", { name: "add files" }),
     ).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("button", { name: "Refresh library" }),
+    ).toBeVisible({ timeout: 5_000 });
   } finally {
     await context.close();
   }
