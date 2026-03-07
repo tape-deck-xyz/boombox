@@ -156,7 +156,7 @@ export function renderLayout(options: RenderLayoutOptions): string {
     : "";
 
   const adminUploadHtml = isAdmin
-    ? '<div class="upload-fab"><upload-dialog-custom-element buttonStyle="width: 24px; height: 24px;" /></div>'
+    ? '<div class="upload-fab"><refresh-cache-custom-element /><upload-dialog-custom-element buttonStyle="width: 24px; height: 24px;" /></div>'
     : "";
 
   return `<div id="root">
