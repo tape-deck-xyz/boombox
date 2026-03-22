@@ -47,7 +47,7 @@ body {
   flex: 1;
   min-height: 0;
 }
-.upload-fab {
+.admin-toolbar {
   position: fixed;
   top: 1rem;
   right: 1rem;
@@ -55,6 +55,18 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.admin-toolbar-item {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-toolbar-item > * {
+  width: 24px;
+  height: 24px;
 }
 
 @media only screen and (min-width: 50rem) {

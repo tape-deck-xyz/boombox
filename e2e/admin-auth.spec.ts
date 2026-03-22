@@ -28,14 +28,11 @@ test("admin with correct credentials logs in and sees upload button", async ({ b
   try {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator("upload-dialog-custom-element")).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(
-      page.getByRole("button", { name: "add files" }),
-    ).toBeVisible({ timeout: 5_000 });
     await expect(
       page.getByRole("button", { name: "Refresh library" }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByRole("button", { name: "add files" }),
     ).toBeVisible({ timeout: 5_000 });
   } finally {
     await context.close();

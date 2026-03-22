@@ -24,12 +24,17 @@ template.innerHTML = `
     :host {
       display: inline-flex;
     }
+    .trigger-wrapper {
+      position: relative;
+      width: 24px;
+      height: 24px;
+    }
     button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      height: 100%;
+      width: 24px;
+      height: 24px;
       background: transparent;
       border: none;
       cursor: pointer;
@@ -45,9 +50,11 @@ template.innerHTML = `
       display: block;
     }
   </style>
-  <button type="button" aria-label="add files" id="trigger" title="Add files">
-    <plus-circle-icon class="size-6"></plus-circle-icon>
-  </button>
+  <div class="trigger-wrapper">
+    <button type="button" aria-label="add files" id="trigger" title="Add files">
+      <plus-circle-icon class="size-6"></plus-circle-icon>
+    </button>
+  </div>
 `;
 
 const dialogTemplate = document.createElement("template");

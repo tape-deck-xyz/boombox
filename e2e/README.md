@@ -33,7 +33,7 @@ The main config excludes `blank-slate.spec.ts` via `testIgnore`. The blank-slate
 | `index.spec.ts` | Home page with "Latest" album row and fixture data |
 | `album.spec.ts` | Album detail page |
 | `admin-auth.spec.ts` | Admin Basic Auth flow and upload button visibility |
-| `visual.spec.ts` | Visual regression (screenshot baselines) |
+| `visual.spec.ts` | Visual regression (screenshot baselines); includes admin toolbar (both buttons) |
 | `blank-slate.spec.ts` | Empty state when no albums (non-admin and admin) |
 
 ## Running a single suite

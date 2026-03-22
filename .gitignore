@@ -17,5 +17,7 @@ docs
 
 # Playwright
 /test-results
+/admin-page-screenshot.png
+/admin-toolbar-only.png
 /playwright-report
 /blob-report
