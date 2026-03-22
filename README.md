@@ -134,7 +134,7 @@ The AWS credentials in your `.env` (`AWS_ACCESS_KEY_ID` /
 
 ## Admin authentication
 
-Only **GET `/admin`** and **POST `/`** (upload) require auth and may return 401.
+Only **GET `/admin`**, **POST `/`** (upload), and **GET `/info?refresh=1`** require auth and may return 401.
 The home page does not challenge; it uses the request’s `Authorization` header
 to show or hide admin UI.
 
@@ -143,11 +143,12 @@ to show or hide admin UI.
 - **How to log in**: Visit `/admin` → browser shows username/password dialog →
   enter the same values as in `.env`. On success you are redirected to `/`; the
   browser then sends the `Authorization` header so the app shows admin-only UI
-  (e.g. upload).
+  (e.g. upload, refresh library).
 - **Protected routes**:
   - **GET `/admin`** — Login entry; requires valid Basic Auth, then redirects to
     `/`.
   - **POST `/`** — File upload; requires valid Basic Auth (401 if missing).
+  - **GET `/info?refresh=1`** — Force refresh of library cache; requires valid Basic Auth (401 if missing). Admins can use the refresh button in the UI.
 
 ---
 
@@ -434,6 +435,7 @@ deno run --allow-read --allow-run scripts/release.ts --dry-run
 | `GET /`                                        | Home page (admin UI shown when logged in via `/admin`) |
 | `GET /admin`                                   | Admin login (Basic Auth); redirects to `/` on success  |
 | `POST /`                                       | File upload (requires admin Basic Auth)                |
+| `GET /info`                                    | Library info JSON (contents, timestamp, hostname). `?refresh=1` forces refresh; requires admin Basic Auth |
 | `GET /artists/:artistId/albums/:albumId`       | Album detail page                                      |
 | `GET /artists/:artistId/albums/:albumId/cover` | Album cover image (from first track’s ID3)             |
 

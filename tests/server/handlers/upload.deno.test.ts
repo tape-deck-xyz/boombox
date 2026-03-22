@@ -1,13 +1,11 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "secret";
-
-function createAdminAuthHeader(): string {
-  return `Basic ${globalThis.btoa(`${ADMIN_USER}:${ADMIN_PASS}`)}`;
-}
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+} from "./test-utils.ts";
 
 Deno.test({
   name: "Upload handler tests",

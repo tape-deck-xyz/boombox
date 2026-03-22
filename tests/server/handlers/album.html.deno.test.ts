@@ -1,33 +1,7 @@
 /** @file Tests for album page route handler */
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { handleAlbumHtml } from "../../../server/handlers/album.html.ts";
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
-
-function setupStorageEnv(): void {
-  Deno.env.set("AWS_ACCESS_KEY_ID", "test-key");
-  Deno.env.set("AWS_SECRET_ACCESS_KEY", "test-secret");
-  Deno.env.set("STORAGE_REGION", "test-region");
-  Deno.env.set("STORAGE_BUCKET", "test-bucket");
-}
-
-function mockFilesWithAlbum(): void {
-  setSendBehavior((command: unknown) => {
-    const name = (command as { constructor: { name: string } }).constructor
-      ?.name;
-    if (name === "ListObjectsV2Command") {
-      return Promise.resolve({
-        Contents: [
-          {
-            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
-            LastModified: new Date(),
-          },
-        ],
-        IsTruncated: false,
-      });
-    }
-    return Promise.resolve({});
-  });
-}
+import { mockFilesWithAlbum, setupStorageEnv } from "./test-utils.ts";
 
 Deno.test("Album handler returns 400 when artistId is missing", async () => {
   setupStorageEnv();

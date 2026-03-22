@@ -12,6 +12,7 @@
     "npm:music-metadata-browser@^2.5.11": "2.5.11",
     "npm:music-metadata@10": "10.9.1",
     "npm:playwright@*": "1.57.0",
+    "npm:playwright@1.49.0": "1.49.0",
     "npm:sort-by@^1.2.0": "1.2.0",
     "npm:tiny-invariant@^1.3.1": "1.3.3"
   },
@@ -644,7 +645,7 @@
     "@playwright/test@1.57.0": {
       "integrity": "sha512-6TyEnHgd6SArQO8UO2OMTxshln3QMWBtPGrOCgs3wVEmQmwyuNtB10IZMfmYDE0riwNR1cu4q+pPcxMVtaG3TA==",
       "dependencies": [
-        "playwright"
+        "playwright@1.57.0"
       ],
       "bin": true
     },
@@ -1562,14 +1563,28 @@
     "pend@1.2.0": {
       "integrity": "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="
     },
+    "playwright-core@1.49.0": {
+      "integrity": "sha512-R+3KKTQF3npy5GTiKH/T+kdhoJfJojjHESR1YEWhYuEKRVfVaxH3+4+GvXE5xyCngCxhxnykk0Vlah9v8fs3jA==",
+      "bin": true
+    },
     "playwright-core@1.57.0": {
       "integrity": "sha512-agTcKlMw/mjBWOnD6kFZttAAGHgi/Nw0CZ2o6JqWSbMlI219lAFLZZCyqByTsvVAJq5XA5H8cA6PrvBRpBWEuQ==",
+      "bin": true
+    },
+    "playwright@1.49.0": {
+      "integrity": "sha512-eKpmys0UFDnfNb3vfsf8Vx2LEOtflgRebl0Im2eQQnYMA4Aqd+Zw8bEOB+7ZKvN76901mRnqdsiOGKxzVTbi7A==",
+      "dependencies": [
+        "playwright-core@1.49.0"
+      ],
+      "optionalDependencies": [
+        "fsevents"
+      ],
       "bin": true
     },
     "playwright@1.57.0": {
       "integrity": "sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==",
       "dependencies": [
-        "playwright-core"
+        "playwright-core@1.57.0"
       ],
       "optionalDependencies": [
         "fsevents"

@@ -1,40 +1,38 @@
 /** @file Tests for info endpoint handler */
 import { assertEquals } from "@std/assert";
 import { handleInfo } from "../../../server/handlers/info.ts";
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
+import {
+  createAdminAuthHeader,
+  mockFilesWithAlbum,
+  setupAdminEnv,
+  setupStorageEnv,
+} from "./test-utils.ts";
 
-function setupStorageEnv(): void {
-  Deno.env.set("AWS_ACCESS_KEY_ID", "test-key");
-  Deno.env.set("AWS_SECRET_ACCESS_KEY", "test-secret");
-  Deno.env.set("STORAGE_REGION", "test-region");
-  Deno.env.set("STORAGE_BUCKET", "test-bucket");
-}
-
-function mockFilesWithAlbum(): void {
-  setSendBehavior((command: unknown) => {
-    const name = (command as { constructor: { name: string } }).constructor
-      ?.name;
-    if (name === "ListObjectsV2Command") {
-      return Promise.resolve({
-        Contents: [
-          {
-            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
-            LastModified: new Date(),
-          },
-        ],
-        IsTruncated: false,
-      });
-    }
-    return Promise.resolve({});
-  });
-}
-
-Deno.test("Info handler returns JSON with contents, timestamp, hostname", async () => {
+Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
+  setupAdminEnv();
   mockFilesWithAlbum();
 
   const req = new Request("http://example.com:8000/info?refresh=1", {
     method: "GET",
+  });
+  const response = await handleInfo(req, {});
+
+  assertEquals(response.status, 401);
+  assertEquals(
+    response.headers.get("WWW-Authenticate"),
+    'Basic realm="Admin", charset="UTF-8"',
+  );
+});
+
+Deno.test("Info handler returns JSON with contents, timestamp, hostname when refresh=1 with auth", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  mockFilesWithAlbum();
+
+  const req = new Request("http://example.com:8000/info?refresh=1", {
+    method: "GET",
+    headers: { Authorization: createAdminAuthHeader() },
   });
   const response = await handleInfo(req, {});
 
@@ -49,11 +47,13 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname", async 
 
 Deno.test("Info handler uses cache when no refresh param", async () => {
   setupStorageEnv();
+  setupAdminEnv();
   mockFilesWithAlbum();
 
-  // First request populates cache
+  // First request populates cache (requires auth for refresh)
   const req1 = new Request("http://cache-test.example/info?refresh=1", {
     method: "GET",
+    headers: { Authorization: createAdminAuthHeader() },
   });
   const response1 = await handleInfo(req1, {});
   assertEquals(response1.status, 200);

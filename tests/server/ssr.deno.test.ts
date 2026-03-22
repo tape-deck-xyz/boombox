@@ -177,7 +177,7 @@ Deno.test("renderPage does not include app name header in layout", () => {
 Deno.test("renderPage includes upload dialog for admin requests", () => {
   /**
    * When isAdmin is true, the page must include the upload-dialog-custom-element
-   * in the upload-fab container so the upload button is visible to admins.
+   * in the admin-toolbar container so the upload button is visible to admins.
    */
   const html = renderPage(
     {
@@ -189,7 +189,8 @@ Deno.test("renderPage includes upload dialog for admin requests", () => {
     ["<div>content</div>"],
   );
 
-  assertStringIncludes(html, "upload-fab");
+  assertStringIncludes(html, "admin-toolbar");
+  assertStringIncludes(html, "refresh-cache-custom-element");
   assertStringIncludes(html, "upload-dialog-custom-element");
 });
 
@@ -208,6 +209,11 @@ Deno.test("renderPage does not include upload button when not admin", () => {
     html.includes("upload-dialog-custom-element"),
     false,
     "Should not include upload dialog when isAdmin is false",
+  );
+  assertEquals(
+    html.includes("refresh-cache-custom-element"),
+    false,
+    "Should not include refresh cache when isAdmin is false",
   );
 });
 
