@@ -255,7 +255,11 @@ Deno.test("RefreshCacheCustomElement - disables button and adds loading class du
 
   const trigger = getTrigger(el);
   assertExists(trigger);
-  assertEquals(trigger.disabled, true, "button should be disabled during fetch");
+  assertEquals(
+    trigger.disabled,
+    true,
+    "button should be disabled during fetch",
+  );
   assertEquals(
     trigger.classList.contains("loading"),
     true,

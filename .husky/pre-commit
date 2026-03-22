@@ -4,5 +4,8 @@
 # Lint staged files with deno lint (only TypeScript/JavaScript files)
 .husky/run-on-staged.sh "deno lint --fix" "ts,tsx,js,jsx"
 
+# Format check (must pass; mirrors CI)
+deno fmt --check
+
 # Type check and run tests
 deno check app/components/**/*.ts app/util/*.ts server/**/*.ts 2>/dev/null || true
