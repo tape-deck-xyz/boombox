@@ -1,45 +1,12 @@
 /** @file Tests for info endpoint handler */
 import { assertEquals } from "@std/assert";
 import { handleInfo } from "../../../server/handlers/info.ts";
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
-
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "secret";
-
-function setupStorageEnv(): void {
-  Deno.env.set("AWS_ACCESS_KEY_ID", "test-key");
-  Deno.env.set("AWS_SECRET_ACCESS_KEY", "test-secret");
-  Deno.env.set("STORAGE_REGION", "test-region");
-  Deno.env.set("STORAGE_BUCKET", "test-bucket");
-}
-
-function setupAdminEnv(): void {
-  Deno.env.set("ADMIN_USER", ADMIN_USER);
-  Deno.env.set("ADMIN_PASS", ADMIN_PASS);
-}
-
-function createAdminAuthHeader(): string {
-  return `Basic ${globalThis.btoa(`${ADMIN_USER}:${ADMIN_PASS}`)}`;
-}
-
-function mockFilesWithAlbum(): void {
-  setSendBehavior((command: unknown) => {
-    const name = (command as { constructor: { name: string } }).constructor
-      ?.name;
-    if (name === "ListObjectsV2Command") {
-      return Promise.resolve({
-        Contents: [
-          {
-            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
-            LastModified: new Date(),
-          },
-        ],
-        IsTruncated: false,
-      });
-    }
-    return Promise.resolve({});
-  });
-}
+import {
+  createAdminAuthHeader,
+  mockFilesWithAlbum,
+  setupAdminEnv,
+  setupStorageEnv,
+} from "./test-utils.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
