@@ -191,8 +191,9 @@ template.innerHTML = `
  *   Controls whether the current track is playing or paused.
  *
  * - `data-album-url` (string | null): The base URL for the album (S3 bucket URL).
- *   Used to fetch remaining tracks in the album for the playlist dropdown.
- *   Required for the playlist feature to work.
+ *   Used to fetch remaining tracks for prev/next buttons and the playlist dropdown.
+ *   Optional: when omitted, the album URL is derived from `data-current-track-url`
+ *   (e.g. after fragment navigation when the playbar has no album context).
  *
  * - `onchange` (string): Optional function name to call when player state changes.
  *   The function will be called with a CustomEvent as the argument.
@@ -212,7 +213,8 @@ template.innerHTML = `
  * - Manages its own audio element and playback state internally
  * - Handles all user interactions (play/pause/next buttons, playlist clicks, progress scrubber)
  * - Listens for `seek` events from the embedded progress-indicator and sets audio currentTime
- * - Loads remaining tracks in the album when both `data-album-url` and `data-current-track-url` are set
+ * - Loads remaining tracks in the album when `data-current-track-url` is set
+ *   (uses `data-album-url` when provided, otherwise derives it from the track URL)
  * - Preloads the next track when within 20 seconds of the end
  * - Auto-plays the next track when the current track ends
  * - Parses track information from the URL format: `{number}__{name}.{ext}`
@@ -616,15 +618,23 @@ export class PlaybarCustomElement extends HTMLElement {
     }
 
     this.loadTracksPromise = (async () => {
+      let effectiveAlbumUrl = this.albumUrl;
+      if (!effectiveAlbumUrl && this.currentTrackUrl) {
+        try {
+          effectiveAlbumUrl = getParentDataFromTrackUrl(
+            this.currentTrackUrl,
+          ).albumUrl;
+        } catch {
+          effectiveAlbumUrl = null;
+        }
+      }
       try {
-        if (this.albumUrl && this.currentTrackUrl) {
+        if (effectiveAlbumUrl && this.currentTrackUrl) {
           this.remainingTracks = await getRemainingAlbumTracks(
-            this.albumUrl,
+            effectiveAlbumUrl,
             this.currentTrackUrl,
           );
-          // Also load all tracks for prev button functionality
-          await this.loadAllAlbumTracks();
-          // Re-render after tracks are loaded to update playlist UI
+          await this.loadAllAlbumTracks(effectiveAlbumUrl);
           this.render();
         } else {
           this.remainingTracks = [];
@@ -645,14 +655,16 @@ export class PlaybarCustomElement extends HTMLElement {
   /**
    * Load all tracks in the album for prev button functionality.
    * Filters out cover.jpeg files from the track list.
+   * @param albumUrlOverride - Optional. When set, used instead of this.albumUrl (e.g. when derived from track URL).
    */
-  private async loadAllAlbumTracks() {
-    if (!this.albumUrl || !this.currentTrackUrl) {
+  private async loadAllAlbumTracks(albumUrlOverride?: string | null) {
+    const albumUrl = albumUrlOverride ?? this.albumUrl;
+    if (!albumUrl || !this.currentTrackUrl) {
       this.allAlbumTracks = [];
       return;
     }
     this.allAlbumTracks =
-      (await getAllAlbumTracks(this.albumUrl, this.currentTrackUrl)).filter((
+      (await getAllAlbumTracks(albumUrl, this.currentTrackUrl)).filter((
         track,
       ) => track.title !== "cover.jpeg");
   }
