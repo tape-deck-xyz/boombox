@@ -571,6 +571,76 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "PlaybarCustomElement - should enable prev/next when only data-current-track-url is set (derives album URL from track)",
+  async () => {
+    setupDOMEnvironment({
+      fetch: createS3MockFetch([
+        "Artist/Album/01__Track One.mp3",
+        "Artist/Album/02__Track Two.mp3",
+        "Artist/Album/03__Track Three.mp3",
+      ]),
+    });
+    await import("./playbar-custom-element.ts");
+
+    const el = createPlaybar();
+    // Simulate fragment navigation + track click: no data-album-url, only track URL
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album/02__Track Two.mp3",
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const controls = getPlayerControls(el);
+    assertExists(controls);
+    assertEquals(
+      controls.getAttribute("data-has-previous-track"),
+      "true",
+      "prev should be enabled when track is not first and album URL is derived from track",
+    );
+    assertEquals(
+      controls.getAttribute("data-has-next-track"),
+      "true",
+      "next should be enabled when there are remaining tracks and album URL is derived",
+    );
+  },
+);
+
+Deno.test(
+  "PlaybarCustomElement - should disable prev when first track and only data-current-track-url is set",
+  async () => {
+    setupDOMEnvironment({
+      fetch: createS3MockFetch([
+        "Artist/Album/01__Track One.mp3",
+        "Artist/Album/02__Track Two.mp3",
+      ]),
+    });
+    await import("./playbar-custom-element.ts");
+
+    const el = createPlaybar();
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album/01__Track One.mp3",
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const controls = getPlayerControls(el);
+    assertExists(controls);
+    assertEquals(
+      controls.getAttribute("data-has-previous-track"),
+      "false",
+      "prev should be disabled when track is first and album URL is derived",
+    );
+    assertEquals(
+      controls.getAttribute("data-has-next-track"),
+      "true",
+      "next should be enabled when there are remaining tracks",
+    );
+  },
+);
+
 Deno.test({
   name: "PlaybarCustomElement - should handle play toggle button click",
   async fn() {
