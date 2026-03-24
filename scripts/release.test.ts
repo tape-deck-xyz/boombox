@@ -5,10 +5,79 @@ import {
   determineVersionBump,
   formatReleaseNotes,
   getCommitBump,
+  getReleaseTagDisposition,
   incrementSemver,
   parseGitLogMessages,
   prependChangelogSection,
 } from "./release.ts";
+
+async function git(args: string[], cwd: string): Promise<void> {
+  const output = await new Deno.Command("git", {
+    args,
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  if (!output.success) {
+    const err = new TextDecoder().decode(output.stderr).trim();
+    throw new Error(`git ${args.join(" ")} failed: ${err}`);
+  }
+}
+
+Deno.test("getReleaseTagDisposition classifies absent merged and orphan tags", async () => {
+  const absentDir = await Deno.makeTempDir();
+  try {
+    await git(["init", "-b", "main"], absentDir);
+    await git(["config", "user.email", "t@e.st"], absentDir);
+    await git(["config", "user.name", "t"], absentDir);
+    await Deno.writeTextFile(`${absentDir}/f`, "a\n");
+    await git(["add", "f"], absentDir);
+    await git(["commit", "-m", "chore: initial"], absentDir);
+    assertEquals(
+      (await getReleaseTagDisposition("v1.0.0", absentDir)).status,
+      "absent",
+    );
+  } finally {
+    await Deno.remove(absentDir, { recursive: true });
+  }
+
+  const mergedDir = await Deno.makeTempDir();
+  try {
+    await git(["init", "-b", "main"], mergedDir);
+    await git(["config", "user.email", "t@e.st"], mergedDir);
+    await git(["config", "user.name", "t"], mergedDir);
+    await Deno.writeTextFile(`${mergedDir}/f`, "a\n");
+    await git(["add", "f"], mergedDir);
+    await git(["commit", "-m", "chore: initial"], mergedDir);
+    await git(["tag", "v1.0.0"], mergedDir);
+    const merged = await getReleaseTagDisposition("v1.0.0", mergedDir);
+    assertEquals(merged.status, "merged");
+  } finally {
+    await Deno.remove(mergedDir, { recursive: true });
+  }
+
+  const orphanDir = await Deno.makeTempDir();
+  try {
+    await git(["init", "-b", "main"], orphanDir);
+    await git(["config", "user.email", "t@e.st"], orphanDir);
+    await git(["config", "user.name", "t"], orphanDir);
+    await Deno.writeTextFile(`${orphanDir}/f`, "a\n");
+    await git(["add", "f"], orphanDir);
+    await git(["commit", "-m", "chore: on main"], orphanDir);
+    await git(["checkout", "-b", "release"], orphanDir);
+    await Deno.writeTextFile(`${orphanDir}/f`, "a\nb\n");
+    await git(["add", "f"], orphanDir);
+    await git(["commit", "-m", "chore(release): v1.0.0"], orphanDir);
+    await git(["tag", "v1.0.0"], orphanDir);
+    await git(["checkout", "main"], orphanDir);
+    assertEquals(
+      (await getReleaseTagDisposition("v1.0.0", orphanDir)).status,
+      "orphan",
+    );
+  } finally {
+    await Deno.remove(orphanDir, { recursive: true });
+  }
+});
 
 Deno.test("determineVersionBump returns major for breaking commits", () => {
   const bump = determineVersionBump([

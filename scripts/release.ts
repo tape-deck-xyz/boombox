@@ -1,4 +1,9 @@
-/** @file Conventional commit based semantic release helpers. */
+/** @file Conventional commit based semantic release helpers.
+ *
+ * CLI: default run writes `deno.json` / changelog; `--dry-run` prints the next
+ * version only; `--tag-disposition <tag>` prints `absent`, `merged`, or `orphan`
+ * for CI (see `scripts/circleci-release.sh`).
+ */
 
 export type ReleaseBump = "none" | "patch" | "minor" | "major";
 
@@ -279,6 +284,60 @@ async function runGit(args: string[], cwd: string): Promise<string> {
   return new TextDecoder().decode(output.stdout);
 }
 
+async function gitCommandSucceeded(
+  args: string[],
+  cwd: string,
+): Promise<boolean> {
+  const output = await new Deno.Command("git", {
+    args,
+    cwd,
+    stdout: "null",
+    stderr: "null",
+  }).output();
+  return output.success;
+}
+
+/** Result of classifying a release tag relative to the current `HEAD`. */
+export type ReleaseTagDisposition =
+  | { status: "absent" }
+  | { status: "merged"; tagCommit: string }
+  | { status: "orphan"; tagCommit: string };
+
+/**
+ * Whether `refs/tags/<tagName>` exists, and if so whether it points to a commit
+ * already on the current branch (`HEAD`).
+ *
+ * Used by CI to avoid treating an orphan tag (on `release/x.y.z` only) as a
+ * completed release for `main`.
+ */
+export async function getReleaseTagDisposition(
+  tagName: string,
+  repositoryPath = Deno.cwd(),
+): Promise<ReleaseTagDisposition> {
+  const ref = `refs/tags/${tagName}`;
+  const exists = await gitCommandSucceeded(
+    ["rev-parse", "-q", "--verify", ref],
+    repositoryPath,
+  );
+  if (!exists) {
+    return { status: "absent" };
+  }
+
+  const tagCommit =
+    (await runGit(["rev-parse", `${tagName}^{}`], repositoryPath))
+      .trim();
+  const merged = await gitCommandSucceeded(
+    ["merge-base", "--is-ancestor", tagCommit, "HEAD"],
+    repositoryPath,
+  );
+
+  if (merged) {
+    return { status: "merged", tagCommit };
+  }
+
+  return { status: "orphan", tagCommit };
+}
+
 async function getLatestSemverTag(cwd: string): Promise<string | null> {
   const output = await runGit(
     ["tag", "--merged", "HEAD", "--sort=-v:refname"],
@@ -360,6 +419,20 @@ export async function computeRelease(
 }
 
 if (import.meta.main) {
+  const tagDispIdx = Deno.args.indexOf("--tag-disposition");
+  if (tagDispIdx !== -1) {
+    const tagName = Deno.args[tagDispIdx + 1];
+    if (!tagName) {
+      console.error(
+        'Missing tag name after --tag-disposition (e.g. "v1.2.3").',
+      );
+      Deno.exit(1);
+    }
+    const d = await getReleaseTagDisposition(tagName);
+    console.log(d.status);
+    Deno.exit(0);
+  }
+
   const dryRun = Deno.args.includes("--dry-run");
   const release = await computeRelease();
 
