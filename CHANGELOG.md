@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+## [0.10.0] - 2026-03-25
+
+### General
+* coverArtUrl in info cache, S3-first cover route, preload (#14)
+
 ## [0.9.0] - 2026-03-25
 
 ### admin
