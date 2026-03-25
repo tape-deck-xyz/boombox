@@ -33,10 +33,10 @@ interface CreatePrResponse {
   html_url: string;
 }
 
-/** Create a pull request via GitHub REST API. */
+/** Create a pull request via GitHub REST API. Returns null if that head already has an open PR. */
 async function createPullRequest(
   opts: CreatePrOptions,
-): Promise<CreatePrResponse> {
+): Promise<CreatePrResponse | null> {
   const url = `${GITHUB_REST}/repos/${opts.owner}/${opts.repo}/pulls`;
   const res = await fetch(url, {
     method: "POST",
@@ -55,6 +55,12 @@ async function createPullRequest(
 
   if (!res.ok) {
     const text = await res.text();
+    if (
+      res.status === 422 &&
+      /A pull request already exists/i.test(text)
+    ) {
+      return null;
+    }
     throw new Error(
       `GitHub API create PR failed (${res.status}): ${text}`,
     );
@@ -145,6 +151,12 @@ if (import.meta.main) {
   try {
     const opts = parseArgs();
     const pr = await createPullRequest(opts);
+    if (pr === null) {
+      console.log(
+        "Pull request already exists for this head branch; nothing to do.",
+      );
+      Deno.exit(0);
+    }
     console.log(`Created PR #${pr.number}: ${pr.html_url}`);
 
     await enableAutoMerge(pr.node_id, opts.token);

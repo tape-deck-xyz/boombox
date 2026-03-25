@@ -5,6 +5,8 @@ alwaysApply: true
 
 This is a Deno codebase and as such should strive to use Deno's built in functionality as much as possible.
 
+The code in the codebase should be as functional as possible to help with clartiy and simplicity. Avoid OOP unless you have a very good reason to use it
+
 This codebase will have EXCELENT test coverage. Any change should result in a new or updated test.
 
 You must write tests one at a time and run them to ensure they pass before doing ANYTHING else. NEVER write more than one test at once.
