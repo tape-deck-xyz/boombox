@@ -1,14 +1,16 @@
-/** @file Handler for album cover image extracted from ID3 tags of a track.
+/** @file Handler for album cover image at `GET /artists/:artistId/albums/:albumId/cover`.
  *
- * Serves cover art for an album at `GET /artists/:artistId/albums/:albumId/cover`.
- * Loads the first track (by track number) from S3, extracts ID3 image as a data URL
- * via {@link getID3Tags}, decodes it with {@link decodeDataUrl} from `app/util/data-url.ts`,
- * and returns the image bytes with appropriate Content-Type and Cache-Control.
- * Results are cached in memory by album key.
+ * Serves **`artist/album/cover.jpeg`** from S3 when that object exists; otherwise loads
+ * the first track (by track number), extracts ID3 picture via {@link getID3Tags}, and
+ * decodes with {@link decodeDataUrl}. Responses are cached in memory by album key.
  */
 
 import { decodeDataUrl } from "../../app/util/data-url.ts";
-import { getObjectBytes, getUploadedFiles } from "../../app/util/s3.server.ts";
+import {
+  coverObjectKey,
+  getObjectBytes,
+  getUploadedFiles,
+} from "../../app/util/s3.server.ts";
 import { getAlbum, sortTracksByTrackNumber } from "../../app/util/files.ts";
 import { getID3Tags } from "../../app/util/id3.ts";
 import { createLogger } from "../../app/util/logger.ts";
@@ -20,6 +22,23 @@ const coverCache = new Map<
   string,
   { body: Uint8Array; contentType: string }
 >();
+
+/** Clears in-memory cover responses (for tests). */
+export function clearAlbumCoverHandlerCache(): void {
+  coverCache.clear();
+}
+
+/** Splits `album.id` into S3 path segments (artist name / album name). */
+function artistAndAlbumFromAlbumId(albumId: string): {
+  artist: string;
+  album: string;
+} {
+  const i = albumId.indexOf("/");
+  if (i <= 0 || i >= albumId.length - 1) {
+    throw new Error(`Invalid album id: ${albumId}`);
+  }
+  return { artist: albumId.slice(0, i), album: albumId.slice(i + 1) };
+}
 
 /**
  * Get S3 object key from a track URL.
@@ -42,7 +61,7 @@ export function getKeyFromTrackUrl(trackUrl: string): string {
  *
  * @param _req - The request (unused; route params carry artist/album).
  * @param params - Route params: artistId, albumId.
- * @returns Response with image body (Content-Type from ID3), or 400/404/500 with message.
+ * @returns Response with image body, or 400/404/500 with message.
  */
 export async function handleAlbumCover(
   _req: Request,
@@ -82,6 +101,31 @@ export async function handleAlbumCover(
     return new Response("Album has no tracks", { status: 404 });
   }
 
+  const { artist, album: albumName } = artistAndAlbumFromAlbumId(album.id);
+  const coverKey = coverObjectKey(artist, albumName);
+
+  try {
+    const jpegBytes = await getObjectBytes(coverKey);
+    const entry = { body: jpegBytes, contentType: "image/jpeg" };
+    coverCache.set(cacheKey, entry);
+    logger.debug("Cached cover from S3 object", { cacheKey, coverKey });
+    const body = new Blob([new Uint8Array(jpegBytes)], {
+      type: entry.contentType,
+    });
+    return new Response(body, {
+      headers: {
+        "Content-Type": entry.contentType,
+        "Cache-Control": "private, max-age=86400",
+      },
+    });
+  } catch (s3Err) {
+    logger.debug("S3 cover object unavailable, trying ID3", {
+      cacheKey,
+      coverKey,
+      error: s3Err instanceof Error ? s3Err.message : String(s3Err),
+    });
+  }
+
   try {
     const key = getKeyFromTrackUrl(firstTrack.url);
     const trackBytes = await getObjectBytes(key);
@@ -94,7 +138,7 @@ export async function handleAlbumCover(
       return new Response("Invalid cover image data", { status: 500 });
     }
     coverCache.set(cacheKey, decoded);
-    logger.debug("Cached cover", { cacheKey });
+    logger.debug("Cached cover from ID3", { cacheKey });
     const body = new Blob([new Uint8Array(decoded.body)], {
       type: decoded.contentType,
     });

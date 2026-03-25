@@ -40,12 +40,39 @@ const getAlbumHeaderGradient = async (url: string) => {
     const arrayBuffer = tags.images[0].data;
     const blob = new Blob([arrayBuffer]);
     const srcBlob = URL.createObjectURL(blob);
-    const colors = await extractAlbumArtColors(srcBlob);
-
-    return [colors[0].hex, colors[colors.length - 1].hex];
+    try {
+      const colors = await extractAlbumArtColors(srcBlob);
+      return [colors[0].hex, colors[colors.length - 1].hex];
+    } finally {
+      URL.revokeObjectURL(srcBlob);
+    }
   }
 
   return null;
+};
+
+/**
+ * Dominant colors from a public cover image URL (e.g. `coverArtUrl` from `/info`).
+ * Uses CORS; returns null if fetch or parsing fails.
+ */
+const getAlbumHeaderGradientFromImageUrl = async (
+  imageUrl: string,
+): Promise<string[] | null> => {
+  try {
+    const res = await fetch(imageUrl, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const colors = await extractAlbumArtColors(objectUrl);
+      if (!colors?.length) return null;
+      return [colors[0].hex, colors[colors.length - 1].hex];
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -173,11 +200,15 @@ const albumHeaderStyles = `
  * ### `data-album-url` (string, required)
  * Full S3 URL to the album directory. Must end with `/{artistId}/{albumId}`.
  * Used to derive the artist and album names for display, and to fetch the first
- * track for album art and gradient color extraction.
+ * track for album art and gradient color extraction when `data-cover-art-url` is absent.
  * Throws at construction time if missing or malformed.
+ *
+ * ### `data-cover-art-url` (string, optional)
+ * Public HTTPS URL from the info document. Passed to the nested album image and used
+ * to derive the header gradient when CORS allows; otherwise falls back to ID3-based colors.
  */
 export class AlbumHeaderCustomElement extends HTMLElement {
-  static observedAttributes = ["data-album-url"];
+  static observedAttributes = ["data-album-url", "data-cover-art-url"];
 
   private scrollSentinel: HTMLDivElement | null = null;
   private scrollObserver: IntersectionObserver | null = null;
@@ -218,20 +249,43 @@ export class AlbumHeaderCustomElement extends HTMLElement {
 `;
     this.shadowRoot!.appendChild(template.content.cloneNode(true));
 
-    getFirstSong(albumUrlParts.join("/"), artistId, albumId).then(
-      (firstSong) => {
-        const trackUrl = albumUrlParts.join("/") + "/" + firstSong;
-
-        getAlbumHeaderGradient(trackUrl).then((colors) => {
-          if (colors) {
-            const header = this.shadowRoot?.querySelector(".album-header");
-            if (header) {
-              setAlbumHeaderGradient(header as HTMLElement, colors);
-            }
-          }
-        });
-      },
+    const coverArtUrl = this.getAttribute("data-cover-art-url");
+    const albumImage = this.shadowRoot!.querySelector(
+      "album-image-custom-element",
     );
+    if (coverArtUrl && albumImage) {
+      albumImage.setAttribute("data-cover-art-url", coverArtUrl);
+    }
+
+    const applyGradient = (colors: string[] | null) => {
+      if (!colors?.length) return;
+      const header = this.shadowRoot?.querySelector(".album-header");
+      if (header) {
+        setAlbumHeaderGradient(header as HTMLElement, colors);
+      }
+    };
+
+    const fromId3 = () => {
+      getFirstSong(albumUrlParts.join("/"), artistId, albumId).then(
+        (firstSong) => {
+          if (!firstSong) return;
+          const trackUrl = albumUrlParts.join("/") + "/" + firstSong;
+          getAlbumHeaderGradient(trackUrl).then(applyGradient);
+        },
+      );
+    };
+
+    if (coverArtUrl) {
+      getAlbumHeaderGradientFromImageUrl(coverArtUrl).then((colors) => {
+        if (colors) {
+          applyGradient(colors);
+        } else {
+          fromId3();
+        }
+      });
+    } else {
+      fromId3();
+    }
   }
 
   connectedCallback() {

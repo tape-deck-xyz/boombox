@@ -52,7 +52,7 @@ export interface RenderHeadOptions {
   /** Meta description (escaped). Defaults to default tagline. */
   description?: string;
   /** Optional link elements (e.g. preconnect, preload). */
-  headLinks?: Array<{ rel: string; href: string }>;
+  headLinks?: Array<{ rel: string; href: string; as?: string }>;
   /**
    * Optional raw HTML for head (OG meta, style blocks, etc.).
    * Must be safe HTML; escape any dynamic or user-controlled values with {@link escapeAttr}.
@@ -81,12 +81,12 @@ export function renderHead(options: RenderHeadOptions): string {
     `<meta name="description" content="${escapeAttr(description)}" />`,
     `<link rel="stylesheet" href="${CSS_PATH}" />`,
     `<link rel="preload" href="${JS_PATH}" as="script" />`,
-    ...headLinks.map(
-      (link) =>
-        `<link rel="${escapeAttr(link.rel)}" href="${
-          escapeAttr(link.href)
-        }" />`,
-    ),
+    ...headLinks.map((link) => {
+      const asAttr = link.as ? ` as="${escapeAttr(link.as)}"` : "";
+      return `<link rel="${escapeAttr(link.rel)}" href="${
+        escapeAttr(link.href)
+      }"${asAttr} />`;
+    }),
   ];
   if (headExtra) {
     parts.push(headExtra);
@@ -179,7 +179,7 @@ export function renderLayout(options: RenderLayoutOptions): string {
 /** Props for renderPage (public API for handlers). */
 export interface RenderPageProps {
   appName: string;
-  headLinks?: Array<{ rel: string; href: string }>;
+  headLinks?: Array<{ rel: string; href: string; as?: string }>;
   pathname?: string;
   isAdmin?: boolean;
   /** Override page title (defaults to appName). */

@@ -43,6 +43,7 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname when ref
   assertEquals(typeof body.contents, "object");
   assertEquals(typeof body.timestamp, "number");
   assertEquals(body.hostname, "example.com");
+  assertEquals(typeof body.schemaVersion, "number");
 });
 
 Deno.test("Info handler uses cache when no refresh param", async () => {

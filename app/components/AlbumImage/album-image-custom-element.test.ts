@@ -101,7 +101,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AlbumImageCustomElement - should have observedAttributes data-album-url and class",
+  "AlbumImageCustomElement - should have expected observedAttributes",
   async () => {
     setupDOMEnvironment();
     const { AlbumImageCustomElement } = await import(
@@ -110,7 +110,9 @@ Deno.test(
 
     assertEquals(AlbumImageCustomElement.observedAttributes, [
       "data-album-url",
+      "data-cover-art-url",
       "class",
+      "style",
     ]);
   },
 );

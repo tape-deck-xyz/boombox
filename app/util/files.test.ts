@@ -18,7 +18,7 @@ Deno.test("getArtist returns artist data", () => {
       "Test Album": {
         id: "Test Artist/Test Album",
         title: "Test Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -77,7 +77,7 @@ Deno.test("getAlbum finds album by ID", () => {
       Album: {
         id: "Artist/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -120,7 +120,7 @@ Deno.test("getRemainingAlbumTracks returns remaining tracks", () => {
       Album: {
         id: "Artist/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [track1, track2, track3],
       },
     },
@@ -145,7 +145,7 @@ Deno.test("getRemainingAlbumTracks returns empty array for last track", () => {
       Album: {
         id: "Artist/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [track1],
       },
     },
@@ -175,7 +175,7 @@ Deno.test("getAlbumIdsByRecent sorts by last modified", () => {
       Album1: {
         id: "Artist1/Album1",
         title: "Album1",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [track1],
       },
     },
@@ -183,7 +183,7 @@ Deno.test("getAlbumIdsByRecent sorts by last modified", () => {
       Album2: {
         id: "Artist2/Album2",
         title: "Album2",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [track2],
       },
     },
@@ -202,7 +202,7 @@ Deno.test("search finds matching artists", () => {
       "Abbey Road": {
         id: "The Beatles/Abbey Road",
         title: "Abbey Road",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -210,7 +210,7 @@ Deno.test("search finds matching artists", () => {
       "Dark Side": {
         id: "Pink Floyd/Dark Side",
         title: "Dark Side",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -227,13 +227,13 @@ Deno.test("search finds matching albums", () => {
       "Abbey Road": {
         id: "Artist/Abbey Road",
         title: "Abbey Road",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
       "Dark Side": {
         id: "Artist/Dark Side",
         title: "Dark Side",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -257,7 +257,7 @@ Deno.test("search finds matching tracks", () => {
       Album: {
         id: "Artist/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [track],
       },
     },
@@ -274,7 +274,7 @@ Deno.test("search is case insensitive", () => {
       Album: {
         id: "The Beatles/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },
@@ -305,7 +305,7 @@ Deno.test("search returns empty results for no matches", () => {
       Album: {
         id: "Artist/Album",
         title: "Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },

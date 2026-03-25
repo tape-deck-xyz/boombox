@@ -32,3 +32,21 @@ test("album page includes album-header and album-image elements", async ({ page 
     page.locator("album-header-custom-element").first(),
   ).toBeVisible({ timeout: 5_000 });
 });
+
+test("album page preloads coverArtUrl and sets data-cover-art-url on header", async ({ page }) => {
+  await page.goto("/artists/Test%20Artist/albums/Test%20Album");
+  const header = page.locator("album-header-custom-element").first();
+  await expect(header).toBeVisible({ timeout: 10_000 });
+  await expect(header).toHaveAttribute(
+    "data-cover-art-url",
+    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test Artist\/Test Album\/cover\.jpeg$/,
+  );
+  const preload = page.locator(
+    'link[rel="preload"][as="image"]',
+  );
+  await expect(preload).toHaveCount(1);
+  await expect(preload).toHaveAttribute(
+    "href",
+    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test Artist\/Test Album\/cover\.jpeg$/,
+  );
+});

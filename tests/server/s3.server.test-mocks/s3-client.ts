@@ -24,6 +24,7 @@ const E2E_FIXTURE_KEYS = [
     Key: "Test Artist/Test Album/2__Another Song.mp3",
     LastModified: new Date(),
   },
+  { Key: "Test Artist/Test Album/cover.jpeg", LastModified: new Date() },
 ];
 
 function defaultSendBehavior(command: unknown): Promise<unknown> {

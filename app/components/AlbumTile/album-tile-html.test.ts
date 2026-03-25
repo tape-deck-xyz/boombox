@@ -9,14 +9,18 @@ import { parseHtmlFragment } from "../test.utils.ts";
 import type { Files } from "../../util/files.ts";
 import albumTileHtml from "./album-tile-html.ts";
 
-function makeFiles(artistId: string, albumId: string): Files {
+function makeFiles(
+  artistId: string,
+  albumId: string,
+  options?: { coverArtUrl: string | null },
+): Files {
   const id = `${artistId}/${albumId}`;
   return {
     [artistId]: {
       [albumId]: {
         id,
         title: albumId,
-        coverArt: "",
+        coverArtUrl: options?.coverArtUrl ?? null,
         tracks: [
           {
             url:
@@ -58,6 +62,11 @@ Deno.test(
       "https://bucket.s3.region.amazonaws.com/Test Artist/Test Album",
       "data-album-url should point to album folder",
     );
+    assertEquals(
+      albumImage.getAttribute("data-cover-art-url"),
+      null,
+      "without stored cover URL, omit data-cover-art-url",
+    );
 
     const text = document.body?.textContent ?? "";
     assertEquals(
@@ -70,6 +79,21 @@ Deno.test(
       true,
       "Output should include artist name",
     );
+  },
+);
+
+Deno.test(
+  "albumTileHtml sets data-cover-art-url when album.coverArtUrl is non-null",
+  () => {
+    const publicCover = "https://cdn.example.com/a/b/cover.jpeg";
+    const files = makeFiles("Test Artist", "Test Album", {
+      coverArtUrl: publicCover,
+    });
+    const html = albumTileHtml({ albumId: "Test Artist/Test Album", files });
+    const document = parseHtmlFragment(html);
+    const albumImage = document.querySelector("album-image-custom-element");
+    assertExists(albumImage);
+    assertEquals(albumImage.getAttribute("data-cover-art-url"), publicCover);
   },
 );
 

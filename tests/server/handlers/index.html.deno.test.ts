@@ -153,7 +153,9 @@ Deno.test("Index handler shows blank slate with admin copy when empty and admin"
   });
 
   const req = new Request("http://localhost:8000/", {
-    headers: { Authorization: `Basic ${globalThis.btoa(`${ADMIN_USER}:${ADMIN_PASS}`)}` },
+    headers: {
+      Authorization: `Basic ${globalThis.btoa(`${ADMIN_USER}:${ADMIN_PASS}`)}`,
+    },
   });
   Deno.env.set("ADMIN_USER", ADMIN_USER);
   Deno.env.set("ADMIN_PASS", ADMIN_PASS);

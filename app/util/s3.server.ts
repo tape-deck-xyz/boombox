@@ -494,6 +494,26 @@ export async function handleS3Upload(
 
 // Reading ////////////////////////////////////////////////////////////////////
 
+/**
+ * Public HTTPS URL for an album’s `cover.jpeg` object (same shape as track URLs).
+ */
+export function buildPublicCoverArtUrl(
+  artist: string,
+  album: string,
+  bucket: string,
+  region: string,
+): string {
+  const key = `${artist}/${album}/cover.jpeg`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}
+
+/**
+ * S3 object key for stored cover art (`artist/album/cover.jpeg`).
+ */
+export function coverObjectKey(artist: string, album: string): string {
+  return `${artist}/${album}/cover.jpeg`;
+}
+
 /** File fetch cache to avoid repetitve fetches */
 let filesFetchCache: Promise<Files> | null = null;
 
@@ -520,6 +540,8 @@ const fileFetch = async (): Promise<Files> => {
   try {
     let isTruncated = true;
     const files: Files = {};
+    /** Album ids `artist/album` (decoded) that have a `cover.jpeg` object in the listing. */
+    const coverPresent = new Set<string>();
     let pageCount = 0;
     let totalObjects = 0;
 
@@ -553,7 +575,7 @@ const fileFetch = async (): Promise<Files> => {
         }
 
         let [artist, album] = keyParts;
-        const trackWNum = keyParts[2];
+        const lastSegment = keyParts[2];
 
         // Decode URL-encoded artist and album names from S3 keys
         // S3 keys may be URL-encoded (e.g., "Childish%20Gambino" -> "Childish Gambino")
@@ -565,15 +587,21 @@ const fileFetch = async (): Promise<Files> => {
         }
 
         // Validate: artist and album must exist
-        if (!artist || !album || !trackWNum) {
+        if (!artist || !album || !lastSegment) {
           logger.warn(`Skipping file with missing parts: ${cur.Key}`);
           continue;
         }
 
+        if (lastSegment.toLowerCase() === "cover.jpeg") {
+          coverPresent.add(`${artist}/${album}`);
+          continue;
+        }
+
         // Validate: track filename must have __ separator
+        const trackWNum = lastSegment;
         if (!trackWNum.includes("__")) {
           logger.warn(
-            `Skipping invalid track filename format: ${cur.Key} (expected number__title)`,
+            `Skipping invalid track filename format: ${cur.Key} (expected number__title or cover.jpeg)`,
           );
           continue;
         }
@@ -603,7 +631,7 @@ const fileFetch = async (): Promise<Files> => {
         files[artist][album] = files[artist][album] || {
           id: `${artist}/${album}`,
           title: album,
-          coverArt: null,
+          coverArtUrl: null,
           tracks: [],
         };
         files[artist][album].tracks.push({
@@ -642,6 +670,20 @@ const fileFetch = async (): Promise<Files> => {
       albums: albumCount,
       tracks: trackCount,
     });
+
+    for (const [artistName, albumsMap] of Object.entries(files)) {
+      for (const [albumName, albumObj] of Object.entries(albumsMap)) {
+        const albumKey = `${artistName}/${albumName}`;
+        albumObj.coverArtUrl = coverPresent.has(albumKey)
+          ? buildPublicCoverArtUrl(
+            artistName,
+            albumName,
+            config.STORAGE_BUCKET,
+            config.STORAGE_REGION,
+          )
+          : null;
+      }
+    }
 
     return files;
   } catch (err) {
