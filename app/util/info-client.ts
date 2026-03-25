@@ -6,6 +6,18 @@ type InfoJson = {
   contents?: Files;
 };
 
+/**
+ * Normalizes a path segment from a track URL so it matches {@link Files} keys
+ * (decoded artist/album names, same as `listObjects` in `s3.server.ts`).
+ */
+function segmentAsInfoLookupKey(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 let infoContentsPromise: Promise<Files | null> | null = null;
 
 /** Resets the in-memory `/info` cache (e.g. after admin refresh). */
@@ -37,6 +49,10 @@ export function fetchInfoContents(): Promise<Files | null> {
 
 /**
  * `coverArtUrl` for an album from the cached info document, or `null`.
+ *
+ * `artistId` and `albumId` may be raw path segments from a track URL (including
+ * percent-encoding); they are decoded before lookup so they match `/info`
+ * `contents` keys.
  */
 export async function getCoverArtUrlForAlbum(
   artistId: string,
@@ -44,7 +60,9 @@ export async function getCoverArtUrlForAlbum(
 ): Promise<string | null> {
   const contents = await fetchInfoContents();
   if (!contents) return null;
-  const album = contents[artistId]?.[albumId];
-  if (!album) return null;
-  return album.coverArtUrl;
+  const artistKey = segmentAsInfoLookupKey(artistId);
+  const albumKey = segmentAsInfoLookupKey(albumId);
+  const albumEntry = contents[artistKey]?.[albumKey];
+  if (!albumEntry) return null;
+  return albumEntry.coverArtUrl;
 }
