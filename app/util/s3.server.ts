@@ -495,7 +495,11 @@ export async function handleS3Upload(
 // Reading ////////////////////////////////////////////////////////////////////
 
 /**
- * Public HTTPS URL for an album’s `cover.jpeg` object (same shape as track URLs).
+ * Public HTTPS URL for an album’s `cover.jpeg` object.
+ *
+ * Each path segment is passed through `encodeURIComponent` so the result is a valid absolute
+ * URI (JSON Schema `format: "uri"`) and matches how browsers request objects whose
+ * S3 keys contain spaces or punctuation.
  */
 export function buildPublicCoverArtUrl(
   artist: string,
@@ -503,8 +507,10 @@ export function buildPublicCoverArtUrl(
   bucket: string,
   region: string,
 ): string {
-  const key = `${artist}/${album}/cover.jpeg`;
-  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  const path = [artist, album, "cover.jpeg"]
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `https://${bucket}.s3.${region}.amazonaws.com/${path}`;
 }
 
 /**

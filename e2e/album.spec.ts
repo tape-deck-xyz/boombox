@@ -39,7 +39,7 @@ test("album page preloads coverArtUrl and sets data-cover-art-url on header", as
   await expect(header).toBeVisible({ timeout: 10_000 });
   await expect(header).toHaveAttribute(
     "data-cover-art-url",
-    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test Artist\/Test Album\/cover\.jpeg$/,
+    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test%20Artist\/Test%20Album\/cover\.jpeg$/,
   );
   const preload = page.locator(
     'link[rel="preload"][as="image"]',
@@ -47,6 +47,6 @@ test("album page preloads coverArtUrl and sets data-cover-art-url on header", as
   await expect(preload).toHaveCount(1);
   await expect(preload).toHaveAttribute(
     "href",
-    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test Artist\/Test Album\/cover\.jpeg$/,
+    /https:\/\/test\.s3\.test\.amazonaws\.com\/Test%20Artist\/Test%20Album\/cover\.jpeg$/,
   );
 });

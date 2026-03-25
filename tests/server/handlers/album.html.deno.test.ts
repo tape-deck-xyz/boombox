@@ -115,7 +115,7 @@ Deno.test("Album full HTML preloads coverArtUrl and sets data-cover-art-url", as
     assertEquals(response.status, 200);
     const html = await response.text();
     const expectedCover =
-      "https://test-bucket.s3.test-region.amazonaws.com/Test Artist/Test Album/cover.jpeg";
+      "https://test-bucket.s3.test-region.amazonaws.com/Test%20Artist/Test%20Album/cover.jpeg";
     assertStringIncludes(html, 'rel="preload"');
     assertStringIncludes(html, expectedCover);
     assertStringIncludes(html, 'as="image"');

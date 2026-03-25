@@ -9,6 +9,7 @@ import {
   setSendBehavior,
 } from "./server/s3.server.test-mocks/s3-client.ts";
 import {
+  buildPublicCoverArtUrl,
   getObjectBytes,
   getUploadedFiles,
   handleS3Upload,
@@ -415,6 +416,21 @@ Deno.test(
     assertEquals(
       files["Artist"]["Album"].coverArtUrl,
       "https://test-bucket.s3.test-region.amazonaws.com/Artist/Album/cover.jpeg",
+    );
+  },
+);
+
+Deno.test(
+  "buildPublicCoverArtUrl percent-encodes segments for schema-safe URIs",
+  () => {
+    assertEquals(
+      buildPublicCoverArtUrl(
+        "Stranger",
+        "2026-01-16 - Denver, CO - The River",
+        "my-bucket",
+        "us-east-1",
+      ),
+      "https://my-bucket.s3.us-east-1.amazonaws.com/Stranger/2026-01-16%20-%20Denver%2C%20CO%20-%20The%20River/cover.jpeg",
     );
   },
 );
