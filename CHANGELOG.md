@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+## [0.8.0] - 2026-03-04
+
+### blank-slate
+* fix string formatting in test for deno fmt
+* use inline onclick instead of BLANK_SLATE_SCRIPT
+* add home page blank slate with E2E and visual regression tests
+
+### components
+* standardize JSDoc across all custom elements
+
+### release
+* create release PR with auto-merge instead of direct push (#5)
+
+### rules
+* expand custom-elements rule with JSDoc standard
+
+### General
+* add S3 bucket setup section to README
+
 ## [0.7.0] - 2026-03-02
 
 ### e2e
