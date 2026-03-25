@@ -1,5 +1,20 @@
 version: 2.1
 # CI pipeline: build, lint, test, test-e2e, release
+#
+# Deno is pinned so `deno fmt --check` / lint match developer installs (see README or run `deno --version`).
+# Bump DENO_VERSION when upgrading tooling repo-wide.
+
+commands:
+  install_deno:
+    steps:
+      - run:
+          name: Install Deno
+          command: |
+            set -euo pipefail
+            DENO_VERSION="${DENO_VERSION:-2.7.7}"
+            curl -fsSL https://deno.land/install.sh | sh -s "v${DENO_VERSION}"
+            echo 'export DENO_INSTALL="$HOME/.deno"' >> "$BASH_ENV"
+            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> "$BASH_ENV"
 
 jobs:
   build:
@@ -7,14 +22,7 @@ jobs:
       - image: cimg/base:2024.01
     steps:
       - checkout
-      - run:
-          name: Install Deno
-          command: |
-            curl -fsSL https://deno.land/x/install/install.sh | sh
-            export DENO_INSTALL="$HOME/.deno"
-            export PATH="$DENO_INSTALL/bin:$PATH"
-            echo 'export DENO_INSTALL="$HOME/.deno"' >> $BASH_ENV
-            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - install_deno
       - run:
           name: Build
           command: mkdir build && deno task build
@@ -24,14 +32,7 @@ jobs:
       - image: cimg/base:2024.01
     steps:
       - checkout
-      - run:
-          name: Install Deno
-          command: |
-            curl -fsSL https://deno.land/x/install/install.sh | sh
-            export DENO_INSTALL="$HOME/.deno"
-            export PATH="$DENO_INSTALL/bin:$PATH"
-            echo 'export DENO_INSTALL="$HOME/.deno"' >> $BASH_ENV
-            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - install_deno
       - run:
           name: Test
           command: deno task test:coverage:ci
@@ -45,14 +46,7 @@ jobs:
           name: Install unzip
           command: |
             apt-get update && apt-get install -y unzip
-      - run:
-          name: Install Deno
-          command: |
-            curl -fsSL https://deno.land/x/install/install.sh | sh
-            export DENO_INSTALL="$HOME/.deno"
-            export PATH="$DENO_INSTALL/bin:$PATH"
-            echo 'export DENO_INSTALL="$HOME/.deno"' >> $BASH_ENV
-            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - install_deno
       - run:
           name: Install dependencies
           command: npm ci
@@ -68,14 +62,7 @@ jobs:
       - image: cimg/base:2024.01
     steps:
       - checkout
-      - run:
-          name: Install Deno
-          command: |
-            curl -fsSL https://deno.land/x/install/install.sh | sh
-            export DENO_INSTALL="$HOME/.deno"
-            export PATH="$DENO_INSTALL/bin:$PATH"
-            echo 'export DENO_INSTALL="$HOME/.deno"' >> $BASH_ENV
-            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - install_deno
       - run:
           name: Lint
           command: deno lint
@@ -88,14 +75,7 @@ jobs:
       - image: cimg/base:2024.01
     steps:
       - checkout
-      - run:
-          name: Install Deno
-          command: |
-            curl -fsSL https://deno.land/x/install/install.sh | sh
-            export DENO_INSTALL="$HOME/.deno"
-            export PATH="$DENO_INSTALL/bin:$PATH"
-            echo 'export DENO_INSTALL="$HOME/.deno"' >> $BASH_ENV
-            echo 'export PATH="$DENO_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - install_deno
       - run:
           name: Prepare git for release
           command: |

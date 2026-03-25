@@ -1,0 +1,22 @@
+---
+description: Use CircleCI MCP tools for this repo (slug + workflow).
+alwaysApply: false
+---
+
+## Project slug (do not guess `gh/owner/repo`)
+
+CircleCI’s **GitHub App** projects often use a **`circleci/<org-id>/<project-id>`** slug, not `gh/tape-deck-xyz/boombox`.
+
+1. Call **`list_followed_projects`** on the CircleCI MCP.
+2. Use the **`projectSlug`** value from the **BoomBox** entry exactly as returned (e.g. `circleci/…/…`).
+3. Pass that slug plus **`branch`** into `get_latest_pipeline_status`, `get_build_failure_logs`, `get_job_test_results`, and `run_pipeline` (when applicable).
+
+Guessing `gh/tape-deck-xyz/boombox` causes **404** for this workspace even when Cursor OAuth to CircleCI works.
+
+## Browser URLs
+
+Pipeline URLs like `https://app.circleci.com/pipelines/circleci/<id>/<id>?…` **do not** replace step 1–2: still use **`list_followed_projects`** for the canonical `projectSlug`.
+
+## CI parity locally
+
+Match CircleCI’s pinned Deno (see `.circleci/config.yml` / `install_deno`) so `deno fmt --check` and tests behave the same as CI.
