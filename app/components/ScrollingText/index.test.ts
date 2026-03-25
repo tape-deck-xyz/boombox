@@ -42,18 +42,20 @@ function setupDOMEnvironment() {
 
   wireLinkedomToGlobal(linkedomWindow, linkedomDocument);
 
-  // Override RAF with custom implementation that tracks callbacks for tests
+  // Override RAF: run via queueMicrotask so Deno's test sanitizer never sees
+  // orphan setTimeouts (linkedomWindow.setTimeout was leaking when tests ended
+  // before the 0ms timers fired).
   (globalThis as { requestAnimationFrame: typeof requestAnimationFrame })
     .requestAnimationFrame = (callback: FrameRequestCallback) => {
       const id = ++animationFrameIdCounter;
       animationFrameCallbacks.set(id, () => callback(0));
-      linkedomWindow.setTimeout(() => {
+      queueMicrotask(() => {
         const fn = animationFrameCallbacks.get(id);
         if (fn) {
           fn();
           animationFrameCallbacks.delete(id);
         }
-      }, 0);
+      });
       return id;
     };
   (globalThis as { cancelAnimationFrame: typeof cancelAnimationFrame })
