@@ -15,7 +15,8 @@
  */
 
 const GITHUB_REST = "https://api.github.com";
-const GITHUB_GRAPHQL = "https://api.graphql.github.com/graphql";
+/** GraphQL lives on the same host as REST for github.com (not api.graphql.github.com). */
+const GITHUB_GRAPHQL = `${GITHUB_REST}/graphql`;
 
 interface CreatePrOptions {
   owner: string;
