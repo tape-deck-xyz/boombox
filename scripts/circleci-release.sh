@@ -5,7 +5,9 @@
 # - checkout, "Prepare git for release" (fetch tags, checkout main at CIRCLE_SHA1,
 #   optional HTTPS remote with GITHUB_TOKEN for push).
 # - GITHUB_TOKEN or GH_TOKEN for create-release-pr.ts (GraphQL + REST).
-# - CIRCLE_PROJECT_USERNAME / CIRCLE_PROJECT_REPONAME for GitHub API paths.
+# - GitHub owner/repo for the API: parsed from CIRCLE_REPOSITORY_URL or
+#   git remote origin (preferred). Falls back to CIRCLE_PROJECT_USERNAME /
+#   CIRCLE_PROJECT_REPONAME if needed.
 #
 # Behaviour summary:
 # - Computes next semver from conventional commits (scripts/release.ts).
@@ -23,18 +25,49 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
-OWNER="${CIRCLE_PROJECT_USERNAME:-}"
-REPO="${CIRCLE_PROJECT_REPONAME:-}"
+# CircleCI project slug (CIRCLE_PROJECT_*) can differ from the GitHub path; use clone URL first.
+resolve_github_owner_repo() {
+  local u="${CIRCLE_REPOSITORY_URL:-}"
+  if [ -z "$u" ]; then
+    u="$(git config --get remote.origin.url 2>/dev/null || true)"
+  fi
+  [ -n "$u" ] || return 1
+  u="${u%.git}"
+  local slug=""
+  case "$u" in
+    git@github.com:*)
+      slug="${u#git@github.com:}" ;;
+    *github.com/*)
+      slug="${u##*github.com/}" ;;
+    *)
+      return 1 ;;
+  esac
+  OWNER="${slug%%/*}"
+  REPO="${slug#*/}"
+  REPO="${REPO%%/*}"
+  if [ -z "$OWNER" ] || [ -z "$REPO" ] || [ "$OWNER" = "$slug" ]; then
+    return 1
+  fi
+  return 0
+}
+
+OWNER=""
+REPO=""
+if ! resolve_github_owner_repo; then
+  OWNER="${CIRCLE_PROJECT_USERNAME:-}"
+  REPO="${CIRCLE_PROJECT_REPONAME:-}"
+fi
 if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
-  echo "CIRCLE_PROJECT_USERNAME and CIRCLE_PROJECT_REPONAME must be set."
+  echo "Could not resolve GitHub owner/repo (CIRCLE_REPOSITORY_URL, origin, or CIRCLE_PROJECT_*)."
   exit 1
 fi
 
 # --- Next version (read-only): no writes to deno.json yet --------------------
-NEXT_VERSION="$(
-  deno run --allow-read --allow-run scripts/release.ts --dry-run |
-    head -n 1
-)"
+# Avoid deno | head (can make Deno exit 141 under pipefail when head closes the pipe early).
+DRY_TMP="$(mktemp)"
+trap 'rm -f "$DRY_TMP"' EXIT
+deno run --allow-read --allow-run scripts/release.ts --dry-run >"$DRY_TMP"
+NEXT_VERSION="$(head -n 1 "$DRY_TMP")"
 # Normalize: strip CR and any stray newlines from captured output.
 NEXT_VERSION="${NEXT_VERSION//$'\r'/}"
 NEXT_VERSION="$(printf '%s' "$NEXT_VERSION" | tr -d '\n')"
