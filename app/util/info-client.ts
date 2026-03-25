@@ -17,7 +17,7 @@ export function clearInfoClientCache(): void {
  * Returns `contents` from `/info`, cached for the lifetime of the page until
  * {@link clearInfoClientCache} runs.
  */
-export async function fetchInfoContents(): Promise<Files | null> {
+export function fetchInfoContents(): Promise<Files | null> {
   if (!infoContentsPromise) {
     infoContentsPromise = (async () => {
       try {
