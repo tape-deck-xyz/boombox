@@ -1,5 +1,6 @@
 /** @file Custom element for player controls seen at the bottom of the screen */
 
+import { getCoverArtUrlForAlbum } from "../../../util/info-client.ts";
 import {
   getAllAlbumTracks,
   getParentDataFromTrackUrl,
@@ -433,20 +434,25 @@ export class PlaybarCustomElement extends HTMLElement {
     const derivedMetadata = await deriveTrackMetadata(trackUrl);
     if (this.currentTrackUrl !== trackUrl) return;
 
-    let albumUrl: string | null = null;
+    let coverFromInfo: string | null = null;
     try {
       const data = getParentDataFromTrackUrl(trackUrl);
-      albumUrl = data.albumUrl;
+      if (data.artistName && data.albumName) {
+        coverFromInfo = await getCoverArtUrlForAlbum(
+          data.artistName,
+          data.albumName,
+        );
+      }
     } catch {
-      // Invalid URL format
+      // Invalid URL format or /info unavailable
     }
+    if (this.currentTrackUrl !== trackUrl) return;
 
     const metadata: MediaSessionMetadata = {
       title: derivedMetadata.title,
       artist: derivedMetadata.artist,
       album: derivedMetadata.album,
-      artworkUrl: derivedMetadata.image ??
-        (albumUrl ? `${albumUrl}/cover.jpeg` : undefined),
+      artworkUrl: derivedMetadata.image ?? coverFromInfo ?? undefined,
     };
     this.mediaSession?.updateMetadata(metadata);
   }

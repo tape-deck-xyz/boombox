@@ -13,7 +13,12 @@ export type Track = {
 export type Album = {
   id: string;
   title: string;
-  coverArt: string;
+  /**
+   * Public HTTPS URL for the album’s `cover.jpeg` object in S3, or `null` when
+   * absent or not verified at cache regen. Single source of truth for cover art
+   * location; do not derive client-side from path patterns.
+   */
+  coverArtUrl: string | null;
   tracks: Array<Track>;
 };
 
@@ -169,8 +174,8 @@ export const getAlbumArtAsDataUrl = async (
   return null;
 };
 
-/** Cleanup function to revoke blob URLs (useful for cache invalidation) */
-export const revokeAlbumArtUrl = (albumId: string) => {
+/** Cleanup function to revoke ID3-derived blob URLs (useful for cache invalidation) */
+export const revokeAlbumArtBlobCache = (albumId: string) => {
   const url = blobUrlCache.get(albumId);
   if (url) {
     URL.revokeObjectURL(url);

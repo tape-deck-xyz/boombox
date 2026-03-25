@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tape-deck.xyz/boombox/schemas/info/v1",
+  "title": "BoomBox info cache document",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["contents", "timestamp", "hostname", "schemaVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "contents": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/$defs/album"
+        }
+      }
+    },
+    "timestamp": { "type": "number" },
+    "hostname": { "type": "string" }
+  },
+  "$defs": {
+    "album": {
+      "type": "object",
+      "required": ["id", "title", "coverArtUrl", "tracks"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "coverArtUrl": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string", "format": "uri" }
+          ]
+        },
+        "tracks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/track" }
+        }
+      }
+    },
+    "track": {
+      "type": "object",
+      "required": ["url", "title", "trackNum", "lastModified"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "trackNum": { "type": "number" },
+        "lastModified": { "type": ["number", "null"] }
+      }
+    }
+  }
+}

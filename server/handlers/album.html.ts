@@ -1,7 +1,9 @@
 /** @file Handler for album detail page HTML.
  *
  * Renders the album page with track list and OG meta tags for sharing.
- * Sets og:image to the album cover URL (`/artists/:artistId/albums/:albumId/cover`).
+ * Sets og:image to the canonical cover URL (`/artists/.../cover`). When
+ * `album.coverArtUrl` is set (from the info document), adds `<link rel="preload">`
+ * for that URL and passes `data-cover-art-url` to the album header for LCP.
  */
 
 import { getUploadedFiles } from "../../app/util/s3.server.ts";
@@ -77,6 +79,16 @@ export async function handleAlbumHtml(
     encodeURIComponent(albumId)
   }`;
 
+  const coverArtUrl = album.coverArtUrl;
+  const headLinks = coverArtUrl
+    ? [{ rel: "preload", href: coverArtUrl, as: "image" }]
+    : [];
+
+  const albumHeaderAttrs = [
+    `data-album-url="${escapeAttr(albumUrl)}"`,
+    ...(coverArtUrl ? [`data-cover-art-url="${escapeAttr(coverArtUrl)}"`] : []),
+  ].join(" ");
+
   /** Critical CSS for album page layout; used in full-page headExtra and fragment envelope. */
   const albumPageCriticalCss = `<style>
     album-header-custom-element {
@@ -113,9 +125,7 @@ export async function handleAlbumHtml(
   ${albumPageCriticalCss}`;
 
   const mainContentHtml = `
-  <album-header-custom-element data-album-url="${
-    escapeAttr(albumUrl)
-  }"></album-header-custom-element>
+  <album-header-custom-element ${albumHeaderAttrs}></album-header-custom-element>
 
   <div class="album-page-main">
     <section class="tracklist">
@@ -152,6 +162,7 @@ export async function handleAlbumHtml(
       title: pageTitle,
       description: ogDescription,
       headExtra,
+      headLinks,
       pathname,
       isAdmin,
       playbarAlbumUrl: albumUrl,

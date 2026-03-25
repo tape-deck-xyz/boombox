@@ -131,6 +131,18 @@ Deno.test("renderPage includes headLinks when provided", () => {
   assertStringIncludes(html, "https://example.com", "Should include link href");
 });
 
+Deno.test("renderHead includes link as= when headLinks item sets as", () => {
+  const html = renderHead({
+    title: "P",
+    headLinks: [
+      { rel: "preload", href: "https://cdn.example.com/a.jpg", as: "image" },
+    ],
+  });
+  assertStringIncludes(html, 'rel="preload"');
+  assertStringIncludes(html, "https://cdn.example.com/a.jpg");
+  assertStringIncludes(html, 'as="image"');
+});
+
 Deno.test("renderPage includes children in main", () => {
   const content = '<div class="album-row">Album content</div>';
   const html = renderPage(

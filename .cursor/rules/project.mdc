@@ -9,7 +9,9 @@ The code in the codebase should be as functional as possible to help with clarti
 
 This codebase will have EXCELENT test coverage. Any change should result in a new or updated test.
 
-You must write tests one at a time and run them to ensure they pass before doing ANYTHING else. NEVER write more than one test at once.
+When adding features or fixing bugs, this codebase always follows test driven development.
+
+When adding tests after a bug has been fixed or feature has been implemented, you must write tests one at a time and run them to ensure they pass before doing ANYTHING else. NEVER write more than one test at once.
 
 This codebase will have EXCELENT documentation, and will follow Deno best practices with regard to documentation.
 

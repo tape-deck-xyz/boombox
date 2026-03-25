@@ -131,6 +131,10 @@ template.innerHTML = `
  * Changing this attribute triggers a new image load. If the same album URL is
  * already loaded, the image is not re-fetched.
  *
+ * ### `data-cover-art-url` (string, optional)
+ * Public HTTPS URL from the info document (`coverArtUrl`). When set, loaded first
+ * with `fetchpriority="high"`; on load error, falls back to ID3 on the first track.
+ *
  * ### `class` (string)
  * CSS class list forwarded to the inner img element so external styles apply
  * through the shadow DOM boundary.
@@ -139,11 +143,17 @@ template.innerHTML = `
  * Inline styles forwarded to the inner img element.
  */
 export class AlbumImageCustomElement extends HTMLElement {
-  static observedAttributes = ["data-album-url", "class"];
+  static observedAttributes = [
+    "data-album-url",
+    "data-cover-art-url",
+    "class",
+    "style",
+  ];
 
   private artistId: string | null = null;
   private albumId: string | null = null;
-  private currentAlbumUrl: string | null = null;
+  /** Cache key: album URL + optional cover URL */
+  private loadKey: string | null = null;
   private loadImageAbortController: AbortController | null = null;
 
   constructor() {
@@ -160,6 +170,8 @@ export class AlbumImageCustomElement extends HTMLElement {
 
   private async loadAlbumImage() {
     const albumUrl = this.getAttribute("data-album-url") || "";
+    const coverArtUrl = this.getAttribute("data-cover-art-url");
+
     if (!albumUrl) {
       return;
     }
@@ -172,81 +184,95 @@ export class AlbumImageCustomElement extends HTMLElement {
       return;
     }
 
-    // If we're already loading/loaded the same album, don't reload
-    // This prevents the image from popping in/out when tracks change within the same album
-    if (
-      this.currentAlbumUrl === albumUrl && this.artistId === artistId &&
-      this.albumId === albumId
-    ) {
+    const nextKey = `${albumUrl}|${coverArtUrl ?? ""}`;
+    if (this.loadKey === nextKey) {
       return;
     }
 
-    // Abort any pending image load for a different album
     if (this.loadImageAbortController) {
       this.loadImageAbortController.abort();
     }
     this.loadImageAbortController = new AbortController();
     const signal = this.loadImageAbortController.signal;
 
-    // Store for use in event handlers
     this.artistId = artistId;
     this.albumId = albumId;
-    this.currentAlbumUrl = albumUrl;
+    this.loadKey = nextKey;
 
-    try {
-      const dataUrl = await getAlbumArtAsDataUrlCached(
-        albumUrl,
-        artistId,
-        albumId,
-      );
-
-      if (signal.aborted || !dataUrl) {
-        return;
-      }
-
-      const img = this.shadowRoot!.querySelector("img");
-      if (!img) {
-        return;
-      }
-
-      // Set src first with empty alt to prevent flash
-      img.setAttribute("src", dataUrl);
-
-      // Set alt text for accessibility once image is loaded
-      // Check if already loaded (cached images)
-      if (img.complete && img.naturalHeight !== 0) {
-        this.setAltText(img);
-      } else {
-        const loadHandler = () => {
-          if (!signal.aborted) {
-            this.setAltText(img);
-          }
-          // Clean up listeners
-          img.removeEventListener("load", loadHandler);
-          img.removeEventListener("error", errorHandler);
-        };
-        const errorHandler = () => {
-          if (!signal.aborted) {
-            this.setAltText(img);
-          }
-          // Clean up listeners
-          img.removeEventListener("load", loadHandler);
-          img.removeEventListener("error", errorHandler);
-        };
-
-        img.addEventListener("load", loadHandler, { once: true });
-        img.addEventListener("error", errorHandler, { once: true });
-
-        // Clean up listeners if aborted
-        signal.addEventListener("abort", () => {
-          img.removeEventListener("load", loadHandler);
-          img.removeEventListener("error", errorHandler);
-        });
-      }
-    } catch (_error) {
-      // Silently fail - album art is optional
-      // Error could be from network, parsing, etc.
+    const img = this.shadowRoot!.querySelector("img");
+    if (!img) {
+      return;
     }
+
+    const applyId3Src = async (): Promise<void> => {
+      try {
+        const dataUrl = await getAlbumArtAsDataUrlCached(
+          albumUrl,
+          artistId,
+          albumId,
+        );
+        if (signal.aborted || !dataUrl) {
+          return;
+        }
+        img.removeAttribute("fetchpriority");
+        img.setAttribute("src", dataUrl);
+        if (img.complete && img.naturalHeight !== 0) {
+          this.setAltText(img);
+        } else {
+          const loadHandler = () => {
+            if (!signal.aborted) this.setAltText(img);
+            img.removeEventListener("load", loadHandler);
+            img.removeEventListener("error", errorHandler);
+          };
+          const errorHandler = () => {
+            if (!signal.aborted) this.setAltText(img);
+            img.removeEventListener("load", loadHandler);
+            img.removeEventListener("error", errorHandler);
+          };
+          img.addEventListener("load", loadHandler, { once: true });
+          img.addEventListener("error", errorHandler, { once: true });
+          signal.addEventListener("abort", () => {
+            img.removeEventListener("load", loadHandler);
+            img.removeEventListener("error", errorHandler);
+          });
+        }
+      } catch (_error) {
+        // album art is optional
+      }
+    };
+
+    if (coverArtUrl) {
+      img.fetchPriority = "high";
+      const coverOk = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (v: boolean) => {
+          if (settled) return;
+          settled = true;
+          img.removeEventListener("load", onLoad);
+          img.removeEventListener("error", onErr);
+          resolve(v);
+        };
+        const onLoad = () => finish(true);
+        const onErr = () => finish(false);
+        img.addEventListener("load", onLoad, { once: true });
+        img.addEventListener("error", onErr, { once: true });
+        img.setAttribute("src", coverArtUrl);
+        if (img.complete && img.naturalHeight > 0) {
+          finish(true);
+        }
+        signal.addEventListener("abort", () => finish(false), { once: true });
+      });
+
+      if (signal.aborted) {
+        return;
+      }
+      if (coverOk) {
+        this.setAltText(img);
+        return;
+      }
+    }
+
+    await applyId3Src();
   }
 
   connectedCallback() {
@@ -307,8 +333,7 @@ export class AlbumImageCustomElement extends HTMLElement {
   ) {
     if (name === "class") {
       this.updateImageClasses();
-    } else if (name === "data-album-url") {
-      // Reload image when album URL changes
+    } else if (name === "data-album-url" || name === "data-cover-art-url") {
       this.loadAlbumImage();
     } else if (name === "style") {
       this.updateImageStyles();

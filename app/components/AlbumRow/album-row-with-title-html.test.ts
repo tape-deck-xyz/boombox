@@ -16,7 +16,7 @@ function makeFiles(artistId: string, albumId: string): Files {
       [albumId]: {
         id,
         title: albumId,
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [
           {
             url:

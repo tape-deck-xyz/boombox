@@ -9,6 +9,7 @@ import {
   setSendBehavior,
 } from "./server/s3.server.test-mocks/s3-client.ts";
 import {
+  buildPublicCoverArtUrl,
   getObjectBytes,
   getUploadedFiles,
   handleS3Upload,
@@ -233,6 +234,7 @@ Deno.test("getUploadedFiles skips keys with invalid structure (not exactly 3 par
   assertEquals(Object.keys(files), ["Artist"]);
   assertEquals(Object.keys(files["Artist"]), ["Album"]);
   assertEquals(files["Artist"]["Album"].tracks.length, 1);
+  assertEquals(files["Artist"]["Album"].coverArtUrl, null);
 });
 
 Deno.test("getUploadedFiles uses key as-is when decodeURIComponent throws", async () => {
@@ -257,6 +259,7 @@ Deno.test("getUploadedFiles uses key as-is when decodeURIComponent throws", asyn
   assert("Artist%ZZ" in files);
   assert("Album" in files["Artist%ZZ"]);
   assertEquals(files["Artist%ZZ"]["Album"].tracks.length, 1);
+  assertEquals(files["Artist%ZZ"]["Album"].coverArtUrl, null);
 });
 
 Deno.test("getUploadedFiles skips keys with missing artist, album, or track", async () => {
@@ -282,6 +285,7 @@ Deno.test("getUploadedFiles skips keys with missing artist, album, or track", as
   const files = await getUploadedFiles(true);
   assertEquals(Object.keys(files), ["Artist"]);
   assertEquals(files["Artist"]["Album"].tracks.length, 1);
+  assertEquals(files["Artist"]["Album"].coverArtUrl, null);
 });
 
 Deno.test("getUploadedFiles skips keys without __ in track filename", async () => {
@@ -306,6 +310,7 @@ Deno.test("getUploadedFiles skips keys without __ in track filename", async () =
   const files = await getUploadedFiles(true);
   assertEquals(files["Artist"]["Album"].tracks.length, 1);
   assertEquals(files["Artist"]["Album"].tracks[0].title, "Valid.mp3");
+  assertEquals(files["Artist"]["Album"].coverArtUrl, null);
 });
 
 Deno.test("getUploadedFiles skips keys with invalid track number", async () => {
@@ -331,6 +336,7 @@ Deno.test("getUploadedFiles skips keys with invalid track number", async () => {
   const files = await getUploadedFiles(true);
   assertEquals(files["Artist"]["Album"].tracks.length, 1);
   assertEquals(files["Artist"]["Album"].tracks[0].title, "Valid.mp3");
+  assertEquals(files["Artist"]["Album"].coverArtUrl, null);
 });
 
 Deno.test("getUploadedFiles - parses S3 keys into Files structure", async () => {
@@ -380,8 +386,54 @@ Deno.test("getUploadedFiles - parses S3 keys into Files structure", async () => 
     files["Artist One"]["Album A"].tracks[0].url,
     "https://test-bucket.s3.test-region.amazonaws.com/Artist One/Album A/1__First Track.mp3",
   );
+  assertEquals(files["Artist One"]["Album A"].coverArtUrl, null);
   assertEquals(files["Artist Two"]["Album B"].tracks[0].title, "Solo.mp3");
+  assertEquals(files["Artist Two"]["Album B"].coverArtUrl, null);
 });
+
+Deno.test(
+  "getUploadedFiles sets coverArtUrl when cover.jpeg is in listing",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    const now = new Date();
+    setSendBehavior((command) => {
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "ListObjectsV2Command") {
+        return Promise.resolve({
+          Contents: [
+            { Key: "Artist/Album/1__Track.mp3", LastModified: now },
+            { Key: "Artist/Album/cover.jpeg", LastModified: now },
+          ],
+          IsTruncated: false,
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const files = await getUploadedFiles(true);
+    assertEquals(
+      files["Artist"]["Album"].coverArtUrl,
+      "https://test-bucket.s3.test-region.amazonaws.com/Artist/Album/cover.jpeg",
+    );
+  },
+);
+
+Deno.test(
+  "buildPublicCoverArtUrl percent-encodes segments for schema-safe URIs",
+  () => {
+    assertEquals(
+      buildPublicCoverArtUrl(
+        "Stranger",
+        "2026-01-16 - Denver, CO - The River",
+        "my-bucket",
+        "us-east-1",
+      ),
+      "https://my-bucket.s3.us-east-1.amazonaws.com/Stranger/2026-01-16%20-%20Denver%2C%20CO%20-%20The%20River/cover.jpeg",
+    );
+  },
+);
 
 Deno.test("getObjectBytes - throws when required env vars are missing", async () => {
   const orig = {

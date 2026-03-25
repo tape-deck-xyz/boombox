@@ -1,7 +1,9 @@
 /** @file Tests for album page route handler */
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { getUploadedFiles } from "../../../app/util/s3.server.ts";
 import { handleAlbumHtml } from "../../../server/handlers/album.html.ts";
 import { mockFilesWithAlbum, setupStorageEnv } from "./test-utils.ts";
+import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Album handler returns 400 when artistId is missing", async () => {
   setupStorageEnv();
@@ -74,4 +76,52 @@ Deno.test("Album handler returns JSON fragment when X-Requested-With fetch", asy
   assertEquals(typeof body.styles, "string");
   assertStringIncludes(body.styles, "album-header-custom-element");
   assertStringIncludes(body.styles, ".album-page-main");
+});
+
+Deno.test("Album full HTML preloads coverArtUrl and sets data-cover-art-url", async () => {
+  setupStorageEnv();
+  const now = new Date();
+  try {
+    setSendBehavior((command: unknown) => {
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "ListObjectsV2Command") {
+        return Promise.resolve({
+          Contents: [
+            {
+              Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
+              LastModified: now,
+            },
+            {
+              Key: "Test%20Artist/Test%20Album/cover.jpeg",
+              LastModified: now,
+            },
+          ],
+          IsTruncated: false,
+        });
+      }
+      return Promise.resolve({});
+    });
+    await getUploadedFiles(true);
+
+    const req = new Request(
+      "http://localhost:8000/artists/Test%20Artist/albums/Test%20Album",
+    );
+    const response = await handleAlbumHtml(req, {
+      artistId: "Test Artist",
+      albumId: "Test Album",
+    });
+
+    assertEquals(response.status, 200);
+    const html = await response.text();
+    const expectedCover =
+      "https://test-bucket.s3.test-region.amazonaws.com/Test%20Artist/Test%20Album/cover.jpeg";
+    assertStringIncludes(html, 'rel="preload"');
+    assertStringIncludes(html, expectedCover);
+    assertStringIncludes(html, 'as="image"');
+    assertStringIncludes(html, "data-cover-art-url");
+  } finally {
+    setSendBehavior(null);
+    await getUploadedFiles(true);
+  }
 });

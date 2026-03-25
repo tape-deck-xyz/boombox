@@ -1,15 +1,22 @@
-/** @file Info endpoint cache - file-based cache for /info JSON payload */
+/** @file Info endpoint cache - file-based cache for /info JSON document */
 import type { Files } from "../app/util/files.ts";
 import { getUploadedFiles } from "../app/util/s3.server.ts";
+import {
+  assertValidInfoDocument,
+  INFO_DOCUMENT_SCHEMA_VERSION,
+  normalizeContentsLegacy,
+} from "./info-document.ts";
 
 /** Path to the info cache file */
 export const INFO_CACHE_PATH = "cache/info.json";
 
-/** Shape of the /info JSON response */
+/** Shape of the /info JSON response and on-disk `cache/info.json` document */
 export type InfoPayload = {
   contents: Files;
   timestamp: number;
   hostname: string;
+  /** Bumped when the documented JSON shape changes; see schemas/info.schema.json */
+  schemaVersion: number;
 };
 
 /**
@@ -20,7 +27,7 @@ export type InfoPayload = {
 export async function readInfoCache(): Promise<InfoPayload | null> {
   try {
     const text = await Deno.readTextFile(INFO_CACHE_PATH);
-    const parsed = JSON.parse(text) as InfoPayload;
+    const parsed = JSON.parse(text) as Record<string, unknown>;
     if (
       typeof parsed?.contents !== "object" ||
       typeof parsed?.timestamp !== "number" ||
@@ -28,18 +35,28 @@ export async function readInfoCache(): Promise<InfoPayload | null> {
     ) {
       return null;
     }
-    return parsed;
+    const contents = normalizeContentsLegacy(parsed.contents);
+    const schemaVersion = typeof parsed.schemaVersion === "number"
+      ? parsed.schemaVersion
+      : 0;
+    return {
+      contents,
+      timestamp: parsed.timestamp,
+      hostname: parsed.hostname as string,
+      schemaVersion,
+    };
   } catch {
     return null;
   }
 }
 
 /**
- * Write the info payload to the cache file.
+ * Write the info document to disk after JSON Schema validation.
  *
- * @param payload - The payload to persist
+ * @param payload - The document to persist
  */
 export async function writeInfoCache(payload: InfoPayload): Promise<void> {
+  assertValidInfoDocument(payload);
   await Deno.mkdir("cache", { recursive: true });
   await Deno.writeTextFile(
     INFO_CACHE_PATH,
@@ -52,7 +69,7 @@ export async function writeInfoCache(payload: InfoPayload): Promise<void> {
  *
  * @param req - Request used to derive hostname
  * @param files - Optional pre-fetched files; if omitted, fetches from S3
- * @returns The generated payload
+ * @returns The generated document
  */
 export async function regenerateInfoCache(
   req: Request,
@@ -64,6 +81,7 @@ export async function regenerateInfoCache(
     contents,
     timestamp: Date.now(),
     hostname,
+    schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
   await writeInfoCache(payload);
   return payload;

@@ -8,7 +8,7 @@ Deno.test("getArtist returns artist data", () => {
       "Test Album": {
         id: "Test Artist/Test Album",
         title: "Test Album",
-        coverArt: "",
+        coverArtUrl: null,
         tracks: [],
       },
     },

@@ -1,11 +1,7 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import {
-  ADMIN_PASS,
-  ADMIN_USER,
-  createAdminAuthHeader,
-} from "./test-utils.ts";
+import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
 
 Deno.test({
   name: "Upload handler tests",
