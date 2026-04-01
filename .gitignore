@@ -13,8 +13,6 @@ cov.lcov
 .DS_Store
 **/.DS_Store
 
-docs
-
 # Playwright
 /test-results
 /admin-page-screenshot.png
