@@ -77,6 +77,7 @@ export async function handleIndexHtml(
       title: pkg.name,
       html: mainContentHtml,
       meta: [] as Array<{ property?: string; name?: string; content: string }>,
+      libraryContents: files,
     };
     return new Response(JSON.stringify(envelope), {
       headers: { "Content-Type": "application/json" },
@@ -89,6 +90,7 @@ export async function handleIndexHtml(
       headLinks: [],
       pathname,
       isAdmin,
+      libraryContents: files,
     },
     [mainContentHtml],
   );

@@ -57,6 +57,7 @@ template:
 | `STORAGE_BUCKET`        | S3 bucket name                     |
 | `ADMIN_USER`            | Username for admin HTTP Basic Auth |
 | `ADMIN_PASS`            | Password for admin HTTP Basic Auth |
+| `PUBLIC_HOSTNAME`       | Optional. Hostname (or URL) for `hostname` in `GET /info` when the server is behind a proxy. See [docs/library-catalog-and-info.md](docs/library-catalog-and-info.md) |
 | `PORT`                  | Server port (default: `8000`)      |
 
 If `ADMIN_USER` or `ADMIN_PASS` is unset or empty, admin is disabled and
@@ -435,7 +436,7 @@ deno run --allow-read --allow-run scripts/release.ts --dry-run
 | `GET /`                                        | Home page (admin UI shown when logged in via `/admin`) |
 | `GET /admin`                                   | Admin login (Basic Auth); redirects to `/` on success  |
 | `POST /`                                       | File upload (requires admin Basic Auth)                |
-| `GET /info`                                    | Library info JSON (contents, timestamp, hostname). `?refresh=1` forces refresh; requires admin Basic Auth |
+| `GET /info`                                    | Library info JSON (aggregators; optional anon when `ALLOW_PUBLIC_INFO_JSON` is not `false`). Full semantics: [docs/library-catalog-and-info.md](docs/library-catalog-and-info.md) |
 | `GET /artists/:artistId/albums/:albumId`       | Album detail page                                      |
 | `GET /artists/:artistId/albums/:albumId/cover` | Album cover image (from first track’s ID3)             |
 
@@ -445,6 +446,7 @@ Static assets: `/build/*`, `/assets/*` (if present), `/favicon.ico`, `/app.css`.
 
 ## Documentation
 
+- **Library catalog & `GET /info`**: [docs/library-catalog-and-info.md](docs/library-catalog-and-info.md)
 - **Generated API docs**: Run `deno task build:docs` and open `docs/index.html`.
   Built from [doc.exports.ts](doc.exports.ts).
 - **Custom elements**: See
@@ -464,8 +466,8 @@ Static assets: `/build/*`, `/assets/*` (if present), `/favicon.ico`, `/app.css`.
 - SSR is done manually: handlers call `renderPage()` in `server/ssr.ts`, which
   returns full HTML including the custom elements script (`/build/main.js`).
   When the client requests a fragment (header `X-Requested-With: fetch`),
-  handlers return a JSON envelope `{ title, html, meta?, styles? }` instead of a
-  full document.
+  handlers return a JSON envelope `{ title, html, meta?, styles?, libraryContents? }` instead of a
+  full document (see [docs/library-catalog-and-info.md](docs/library-catalog-and-info.md) for catalog embedding).
 - The client is built from custom elements registered in
   `app/components/register-custom-elements.ts`, bundled with
   `deno bundle --platform=browser` to `build/main.js`.

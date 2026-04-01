@@ -68,3 +68,25 @@ Deno.test("normalizeContentsLegacy skips non-object album buckets", () => {
   });
   assertEquals(Object.keys(out), []);
 });
+
+Deno.test(
+  "normalizeAlbumFromCache treats non-array tracks as empty and null cover as null",
+  () => {
+    const album = normalizeAlbumFromCache({
+      id: "id",
+      title: "title",
+      coverArtUrl: null,
+      tracks: "not-an-array" as unknown as [],
+    });
+    assertEquals(album.tracks, []);
+    assertEquals(album.coverArtUrl, null);
+  },
+);
+
+Deno.test("normalizeAlbumFromCache uses empty id and title when missing", () => {
+  const album = normalizeAlbumFromCache({
+    tracks: [],
+  } as Record<string, unknown>);
+  assertEquals(album.id, "");
+  assertEquals(album.title, "");
+});

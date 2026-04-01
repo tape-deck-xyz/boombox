@@ -70,8 +70,8 @@ In-app navigation uses `<nav-link>` custom elements. When clicked, the client
 requests a **fragment** instead of a full page reload:
 
 1. **Request**: Client sends `X-Requested-With: fetch` header
-2. **Response**: Server returns JSON envelope `{ title, html, meta?, styles? }`
-   instead of full HTML
+2. **Response**: Server returns JSON envelope `{ title, html, meta?, styles?, libraryContents? }`
+   instead of full HTML (`libraryContents` is the `Files` tree for client-side cover/metadata; see [Library catalog & `/info`](docs/library-catalog-and-info.md))
 3. **Client behavior**: Updates `main.innerHTML`, `document.title`, meta tags,
    and optional critical CSS. Uses `history.pushState()` for back/forward
    support.
@@ -110,6 +110,10 @@ Example custom elements: `<album-image-custom-element>`, `<nav-link>`,
 Track and album metadata stored in S3. Admin uploads via HTTP Basic Auth
 (`/admin` login, `POST /` upload). AWS SDK v3 accessed via npm specifiers in
 `deno.json`.
+
+### Library catalog and `GET /info`
+
+Canonical library JSON is stored at **`s3://$STORAGE_BUCKET/info.json`** (private object) with on-disk TTL + request-time S3 revalidation (no background job). **`GET /info`** is mainly for **external** aggregators; first-party UI must **not** `fetch("/info")` for catalog data—it uses SSR + fragment `libraryContents` (see [`docs/library-catalog-and-info.md`](docs/library-catalog-and-info.md)). **`PUBLIC_HOSTNAME`** optionally sets the `hostname` field in JSON when behind a proxy. **`ALLOW_PUBLIC_INFO_JSON`**: unset/`true` allows anonymous `GET /info`; **`false`** requires admin Basic Auth on that route. Responses use **`ETag`** / **`If-None-Match`** (**304** when unchanged) and `Content-Type: application/json; charset=utf-8`.
 
 ## Code Conventions
 
@@ -188,6 +192,7 @@ When adding a new route that supports client-side navigation:
          html: mainContentHtml,
          meta: [{ property: "og:title", content: "..." }], // optional
          styles: "/* optional critical CSS */", // optional
+         // libraryContents: files, // optional; same Files tree as SSR embed
        };
        return new Response(JSON.stringify(envelope), {
          headers: { "Content-Type": "application/json" },

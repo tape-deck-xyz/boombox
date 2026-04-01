@@ -41,3 +41,5 @@ compare the `d` attribute. Do not rely on memory or browser MCP for localhost.
 The codebase uses standard CSS, no Tailwind classes.
 
 Any global styling (eg: typography, spacing, utility classes used in multiple places) should be kept in app.css
+
+First-party UI must not `fetch("/info")` for catalog data; use the embedded library script and fragment `libraryContents` per [`docs/library-catalog-and-info.md`](../../docs/library-catalog-and-info.md).

@@ -1,10 +1,12 @@
-/** @file Client fetch cache for GET `/info` — used for `coverArtUrl` and related metadata. */
-
+/** @file Client-side library catalog from SSR embed (first-party UI must not HTTP GET /info for catalog data).
+ *
+ * @see `docs/library-catalog-and-info.md`
+ */
 import type { Files } from "./files.ts";
-
-type InfoJson = {
-  contents?: Files;
-};
+import {
+  BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID,
+  serializeLibraryContentsForEmbeddedScript,
+} from "../../lib/serialize-library-contents.ts";
 
 /**
  * Normalizes a path segment from a track URL so it matches {@link Files} keys
@@ -18,41 +20,62 @@ function segmentAsInfoLookupKey(segment: string): string {
   }
 }
 
-let infoContentsPromise: Promise<Files | null> | null = null;
+/** `undefined` = read from DOM; otherwise in-memory view (also synced to DOM when possible). */
+let memoryOverride: Files | null | undefined = undefined;
 
-/** Resets the in-memory `/info` cache (e.g. after admin refresh). */
+function readLibraryContentsFromDom(): Files | null {
+  if (globalThis.document === undefined) return null;
+  const el = document.getElementById(BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID);
+  if (!el?.textContent?.trim()) return null;
+  try {
+    return JSON.parse(el.textContent) as Files;
+  } catch {
+    return null;
+  }
+}
+
+function getLibraryContents(): Files | null {
+  if (memoryOverride !== undefined) return memoryOverride;
+  return readLibraryContentsFromDom();
+}
+
+/** Resets the in-memory override so the next read uses the embedded script again. */
 export function clearInfoClientCache(): void {
-  infoContentsPromise = null;
+  memoryOverride = undefined;
 }
 
 /**
- * Returns `contents` from `/info`, cached for the lifetime of the page until
- * {@link clearInfoClientCache} runs.
+ * Apply server-provided library data (fragment navigation or tests). Updates the
+ * `<script type="application/json">` node when present.
+ */
+export function setLibraryContentsFromServer(contents: Files): void {
+  memoryOverride = contents;
+  if (globalThis.document === undefined) return;
+  let el = document.getElementById(BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID);
+  const serialized = serializeLibraryContentsForEmbeddedScript(contents);
+  if (el) {
+    el.textContent = serialized;
+  } else {
+    el = document.createElement("script");
+    el.type = "application/json";
+    el.id = BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID;
+    el.textContent = serialized;
+    document.body.appendChild(el);
+  }
+}
+
+/**
+ * Returns embedded `Files` from the page (or the last {@link setLibraryContentsFromServer} value).
  */
 export function fetchInfoContents(): Promise<Files | null> {
-  if (!infoContentsPromise) {
-    infoContentsPromise = (async () => {
-      try {
-        const res = await fetch("/info");
-        if (!res.ok) return null;
-        const body = (await res.json()) as InfoJson;
-        return typeof body.contents === "object" && body.contents !== null
-          ? body.contents
-          : null;
-      } catch {
-        return null;
-      }
-    })();
-  }
-  return infoContentsPromise;
+  return Promise.resolve(getLibraryContents());
 }
 
 /**
- * `coverArtUrl` for an album from the cached info document, or `null`.
+ * `coverArtUrl` for an album from the embedded catalog, or `null`.
  *
  * `artistId` and `albumId` may be raw path segments from a track URL (including
- * percent-encoding); they are decoded before lookup so they match `/info`
- * `contents` keys.
+ * percent-encoding); they are decoded before lookup so they match `contents` keys.
  */
 export async function getCoverArtUrlForAlbum(
   artistId: string,

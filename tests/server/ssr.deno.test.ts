@@ -8,6 +8,7 @@ import {
   renderLayout,
   renderPage,
 } from "../../server/ssr.ts";
+import type { Files } from "../../app/util/files.ts";
 
 Deno.test("renderHead includes title, description, and asset links", () => {
   const html = renderHead({ title: "My Page" });
@@ -241,6 +242,27 @@ Deno.test("renderPage includes playbar-custom-element", () => {
   );
 
   assertStringIncludes(html, "playbar-custom-element");
+});
+
+Deno.test("renderLayout embeds boombox-library-contents when libraryContents is set", () => {
+  const libraryContents: Files = {
+    A: {
+      B: {
+        id: "A/B",
+        title: "B",
+        coverArtUrl: null,
+        tracks: [],
+      },
+    },
+  };
+  const html = renderLayout({
+    isAdmin: false,
+    mainContentHtml: "<div>x</div>",
+    libraryContents,
+  });
+  assertStringIncludes(html, 'id="boombox-library-contents"');
+  assertStringIncludes(html, "application/json");
+  assertStringIncludes(html, '"A"');
 });
 
 Deno.test("renderPage includes track-click script", () => {

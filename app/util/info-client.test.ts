@@ -1,13 +1,32 @@
-/** @file Tests for /info client cache helpers */
+/** @file Tests for embedded library catalog helpers (no GET /info). */
 import { assertEquals } from "@std/assert";
+import { createLinkedomEnv } from "../components/test.utils.ts";
 import {
   clearInfoClientCache,
   fetchInfoContents,
   getCoverArtUrlForAlbum,
+  setLibraryContentsFromServer,
 } from "./info-client.ts";
+import { BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID } from "../../lib/serialize-library-contents.ts";
 import type { Files } from "./files.ts";
 
-Deno.test("fetchInfoContents caches JSON contents and getCoverArtUrlForAlbum reads coverArtUrl", async () => {
+function useLinkedomDocument(): void {
+  const { document: d } = createLinkedomEnv();
+  (globalThis as { document: Document }).document = d;
+}
+
+function seedDomLibraryJson(files: Files): void {
+  const existing = document.getElementById(BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID);
+  existing?.remove();
+  const script = document.createElement("script");
+  script.type = "application/json";
+  script.id = BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID;
+  script.textContent = JSON.stringify(files);
+  document.body.appendChild(script);
+}
+
+Deno.test("fetchInfoContents reads embedded script; getCoverArtUrlForAlbum reads coverArtUrl", async () => {
+  useLinkedomDocument();
   clearInfoClientCache();
   const files: Files = {
     Artist: {
@@ -19,38 +38,21 @@ Deno.test("fetchInfoContents caches JSON contents and getCoverArtUrlForAlbum rea
       },
     },
   };
+  seedDomLibraryJson(files);
 
-  const fetchCalls: string[] = [];
-  const origFetch = globalThis.fetch;
-  globalThis.fetch = ((input: RequestInfo | URL) => {
-    fetchCalls.push(String(input));
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({ contents: files, schemaVersion: 1 }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-  }) as typeof fetch;
+  const c1 = await fetchInfoContents();
+  const c2 = await fetchInfoContents();
+  assertEquals(c1, files);
+  assertEquals(c2, files);
 
-  try {
-    const c1 = await fetchInfoContents();
-    const c2 = await fetchInfoContents();
-    assertEquals(fetchCalls.length, 1);
-    assertEquals(c1, files);
-    assertEquals(c2, files);
-
-    const url = await getCoverArtUrlForAlbum("Artist", "Album");
-    assertEquals(url, "https://example.com/cover.jpeg");
-    assertEquals(fetchCalls.length, 1);
-  } finally {
-    globalThis.fetch = origFetch;
-    clearInfoClientCache();
-  }
+  const url = await getCoverArtUrlForAlbum("Artist", "Album");
+  assertEquals(url, "https://example.com/cover.jpeg");
 });
 
 Deno.test(
-  "getCoverArtUrlForAlbum decodes artist/album segments to match /info keys (S3 URL-encoded paths)",
+  "getCoverArtUrlForAlbum decodes artist/album segments to match contents keys (S3 URL-encoded paths)",
   async () => {
+    useLinkedomDocument();
     clearInfoClientCache();
     const cover =
       "https://bucket.s3.us-east-1.amazonaws.com/Test%20Artist/Test%20Album/cover.jpeg";
@@ -64,46 +66,32 @@ Deno.test(
         },
       },
     };
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = (() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ contents: files, schemaVersion: 1 }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )) as typeof fetch;
-    try {
-      const url = await getCoverArtUrlForAlbum("Test%20Artist", "Test%20Album");
-      assertEquals(url, cover);
-    } finally {
-      globalThis.fetch = origFetch;
-      clearInfoClientCache();
-    }
+    seedDomLibraryJson(files);
+    const url = await getCoverArtUrlForAlbum("Test%20Artist", "Test%20Album");
+    assertEquals(url, cover);
   },
 );
 
-Deno.test("clearInfoClientCache forces next fetchInfoContents to refetch", async () => {
+Deno.test("clearInfoClientCache drops in-memory-only override; updated DOM script remains", async () => {
+  useLinkedomDocument();
   clearInfoClientCache();
-  let n = 0;
-  const origFetch = globalThis.fetch;
-  globalThis.fetch = (() => {
-    n++;
-    return Promise.resolve(
-      new Response(JSON.stringify({ contents: {} }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-  }) as typeof fetch;
-  try {
-    await fetchInfoContents();
-    await fetchInfoContents();
-    assertEquals(n, 1);
-    clearInfoClientCache();
-    await fetchInfoContents();
-    assertEquals(n, 2);
-  } finally {
-    globalThis.fetch = origFetch;
-    clearInfoClientCache();
-  }
+  const filesA: Files = {
+    A: {
+      B: { id: "A/B", title: "B", coverArtUrl: null, tracks: [] },
+    },
+  };
+  const filesB: Files = {
+    X: {
+      Y: {
+        id: "X/Y",
+        title: "Y",
+        coverArtUrl: "https://u/c.jpg",
+        tracks: [],
+      },
+    },
+  };
+  seedDomLibraryJson(filesA);
+  setLibraryContentsFromServer(filesB);
+  clearInfoClientCache();
+  assertEquals(await fetchInfoContents(), filesB);
 });

@@ -727,3 +727,100 @@ export const getUploadedFiles = (force?: boolean): Promise<Files> => {
 
   return filesFetchCache;
 };
+
+// Canonical library JSON (bucket root) ///////////////////////////////////////
+
+/** S3 object key for the library catalog document (private; IAM only). */
+export const INFO_JSON_S3_KEY = "info.json";
+
+/**
+ * Download `info.json` from the configured bucket.
+ *
+ * @returns Body text and normalized ETag, or `null` if the object is missing.
+ */
+export async function getInfoJsonObjectFromS3(): Promise<
+  {
+    bodyText: string;
+    etag: string;
+  } | null
+> {
+  const config = validateConfig();
+  const client = new S3Client({
+    region: config.STORAGE_REGION,
+    credentials: fromEnv(),
+  });
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: config.STORAGE_BUCKET,
+        Key: INFO_JSON_S3_KEY,
+      }),
+    );
+    if (!response.Body) return null;
+    const bodyText = await new Response(response.Body as ReadableStream).text();
+    const raw = response.ETag ?? "";
+    const etag = raw.replaceAll('"', "");
+    return { bodyText, etag };
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw e;
+  }
+}
+
+/**
+ * HEAD `info.json` for revalidation (ETag / Last-Modified).
+ *
+ * @returns Normalized ETag and optional Last-Modified, or `null` if missing.
+ */
+export async function headInfoJsonObjectFromS3(): Promise<
+  {
+    etag: string;
+    lastModified: Date | undefined;
+  } | null
+> {
+  const config = validateConfig();
+  const client = new S3Client({
+    region: config.STORAGE_REGION,
+    credentials: fromEnv(),
+  });
+  try {
+    const response = await client.send(
+      new HeadObjectCommand({
+        Bucket: config.STORAGE_BUCKET,
+        Key: INFO_JSON_S3_KEY,
+      }),
+    );
+    const raw = response.ETag ?? "";
+    const etag = raw.replaceAll('"', "");
+    return { etag, lastModified: response.LastModified };
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    if (name === "NotFound" || name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+/**
+ * Upload validated JSON for `info.json`. Object remains private (bucket default / IAM).
+ *
+ * @param bodyText - Full serialized info document JSON (see `server/info.ts`)
+ * @returns Normalized ETag from the PutObject response
+ */
+export async function putInfoJsonObjectToS3(bodyText: string): Promise<string> {
+  const config = validateConfig();
+  const client = new S3Client({
+    region: config.STORAGE_REGION,
+    credentials: fromEnv(),
+  });
+  const response = await client.send(
+    new PutObjectCommand({
+      Bucket: config.STORAGE_BUCKET,
+      Key: INFO_JSON_S3_KEY,
+      Body: new TextEncoder().encode(bodyText),
+      ContentType: "application/json",
+    }),
+  );
+  const raw = response.ETag ?? "";
+  return raw.replaceAll('"', "");
+}
