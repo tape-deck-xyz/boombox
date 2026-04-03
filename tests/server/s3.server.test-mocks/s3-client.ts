@@ -170,8 +170,14 @@ export function defaultS3MockReply(command: unknown): Promise<unknown> {
     if (key) {
       const entry = e2eSessionKeys.get(key);
       if (entry) {
+        const bytes = entry.body;
         return Promise.resolve({
-          Body: new Blob([entry.body]).stream(),
+          Body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(bytes);
+              controller.close();
+            },
+          }),
         });
       }
     }
