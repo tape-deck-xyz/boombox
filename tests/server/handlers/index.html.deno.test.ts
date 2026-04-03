@@ -9,7 +9,10 @@ import {
   mockFilesWithAlbum,
   setupStorageEnv,
 } from "./test-utils.ts";
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Index handler /admin auth flow",
@@ -82,7 +85,7 @@ Deno.test("Index handler returns JSON fragment when X-Requested-With fetch", asy
     if (name === "ListObjectsV2Command") {
       return Promise.resolve({ Contents: [], IsTruncated: false });
     }
-    return Promise.resolve({});
+    return defaultS3MockReply(command);
   });
 
   const req = new Request("http://localhost:8000/", {
@@ -96,6 +99,8 @@ Deno.test("Index handler returns JSON fragment when X-Requested-With fetch", asy
     "application/json",
   );
   const body = await response.json();
+  assertEquals(typeof body.libraryContents, "object");
+  assertEquals(body.libraryContents !== null, true);
   assertEquals(typeof body.title, "string");
   assertEquals(body.title.length > 0, true);
   assertEquals(typeof body.html, "string");
@@ -116,7 +121,7 @@ Deno.test("Index handler returns full HTML without app name header when no fragm
     if (name === "ListObjectsV2Command") {
       return Promise.resolve({ Contents: [], IsTruncated: false });
     }
-    return Promise.resolve({});
+    return defaultS3MockReply(command);
   });
 
   const req = new Request("http://localhost:8000/");
@@ -128,6 +133,7 @@ Deno.test("Index handler returns full HTML without app name header when no fragm
     "text/html",
   );
   const html = await response.text();
+  assertStringIncludes(html, "boombox-library-contents");
   assertStringIncludes(html, "<!DOCTYPE html");
   assertStringIncludes(
     html,
@@ -149,7 +155,7 @@ Deno.test("Index handler shows blank slate with admin copy when empty and admin"
     if (name === "ListObjectsV2Command") {
       return Promise.resolve({ Contents: [], IsTruncated: false });
     }
-    return Promise.resolve({});
+    return defaultS3MockReply(command);
   });
 
   const req = new Request("http://localhost:8000/", {

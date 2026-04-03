@@ -9,6 +9,18 @@ test("admin uploads file and sees album on home and tracks on album page", async
   });
   const page = await context.newPage();
   try {
+    const bareInfoGets: string[] = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (
+        req.method() === "GET" &&
+        url.includes("/info") &&
+        !url.includes("refresh=1")
+      ) {
+        bareInfoGets.push(url);
+      }
+    });
+
     const audioPath = path.join(process.cwd(), "test_data/no-cover.mp3");
 
     await page.goto("/admin");
@@ -49,6 +61,11 @@ test("admin uploads file and sees album on home and tracks on album page", async
     await page.getByRole("link", { name: new RegExp(album, "i") }).click();
     await expect(page.locator("h1")).toContainText(album, { timeout: 10_000 });
     await expect(page.getByText(title)).toBeVisible({ timeout: 5_000 });
+
+    expect(
+      bareInfoGets,
+      "upload + navigation must use embedded catalog, not GET /info (see docs/library-catalog-and-info.md)",
+    ).toEqual([]);
   } finally {
     await context.close();
   }

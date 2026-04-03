@@ -13,6 +13,7 @@ import {
   FRAGMENT_REQUEST_VALUE,
   type FragmentEnvelope,
 } from "../../../lib/fragment-envelope.ts";
+import { setLibraryContentsFromServer } from "../../util/info-client.ts";
 
 /** Same-origin path (starts with "/"); any such route may be fetched as fragment. */
 function isAppRoute(pathname: string): boolean {
@@ -62,6 +63,9 @@ function applyEnvelope(envelope: FragmentEnvelope): void {
   const main = document.querySelector("main");
   if (main) {
     main.innerHTML = envelope.html;
+  }
+  if (envelope.libraryContents !== undefined) {
+    setLibraryContentsFromServer(envelope.libraryContents);
   }
   document.title = envelope.title;
 

@@ -4,7 +4,10 @@
  * Provides setup functions and mocks used by info, index, album, and upload
  * handler tests.
  */
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 export const ADMIN_USER = "admin";
 export const ADMIN_PASS = "secret";
@@ -40,6 +43,6 @@ export function mockFilesWithAlbum(): void {
         IsTruncated: false,
       });
     }
-    return Promise.resolve({});
+    return defaultS3MockReply(command);
   });
 }

@@ -9,6 +9,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { Event } from "linkedom";
+import type { Files } from "../../util/files.ts";
 import { createLinkedomEnv, getFetchUrl } from "../test.utils.ts";
 
 const NAVLINK_HTML = `<!DOCTYPE html>
@@ -34,6 +35,7 @@ type FragmentEnvelopeOverrides = Partial<{
   html: string;
   meta: { property?: string; name?: string; content: string }[];
   styles: string | undefined;
+  libraryContents: Files;
 }>;
 
 /** Creates a Response with application/json Content-Type and a JSON fragment envelope. */
@@ -734,5 +736,49 @@ Deno.test(
       null,
       "existing fragment-critical-styles element should be removed",
     );
+  },
+);
+
+Deno.test(
+  "NavLinkCustomElement - applyEnvelope applies libraryContents for info-client",
+  async () => {
+    const fragmentLibrary: Files = {
+      NavArtist: {
+        NavAlbum: {
+          id: "NavArtist/NavAlbum",
+          title: "NavAlbum",
+          coverArtUrl: "https://example.com/from-fragment.jpg",
+          tracks: [],
+        },
+      },
+    };
+
+    setupDOMEnvironment({
+      fetch: createFetchThatRecordsCalls(
+        createJsonFragmentResponse({ libraryContents: fragmentLibrary }),
+      ),
+    });
+
+    const script = linkedomDocument.createElement("script");
+    script.id = "boombox-library-contents";
+    script.type = "application/json";
+    script.textContent = "{}";
+    linkedomDocument.body.appendChild(script);
+
+    await import("./nav-link-custom-element.ts");
+    const infoClient = await import("../../util/info-client.ts");
+    infoClient.clearInfoClientCache();
+
+    const el = createNavLink({ href: "/artists/a/b" });
+    dispatchClick(el);
+
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const url = await infoClient.getCoverArtUrlForAlbum(
+      "NavArtist",
+      "NavAlbum",
+    );
+    assertEquals(url, "https://example.com/from-fragment.jpg");
   },
 );

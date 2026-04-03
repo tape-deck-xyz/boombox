@@ -10,6 +10,11 @@ import {
   type FragmentEnvelope,
   type FragmentMetaItem,
 } from "../lib/fragment-envelope.ts";
+import {
+  BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID,
+  serializeLibraryContentsForEmbeddedScript,
+} from "../lib/serialize-library-contents.ts";
+import type { Files } from "../app/util/files.ts";
 
 const CSS_PATH = "/app.css";
 const JS_PATH = "/build/main.js";
@@ -121,6 +126,10 @@ export interface RenderLayoutOptions {
   mainContentHtml: string;
   /** Optional album URL for PlayBar data-album-url (e.g. on album page). */
   playbarAlbumUrl?: string;
+  /**
+   * Library tree embedded for `info-client` (see `docs/library-catalog-and-info.md`).
+   */
+  libraryContents?: Files;
 }
 
 const TRACK_CLICK_SCRIPT = `
@@ -149,10 +158,17 @@ export function renderLayout(options: RenderLayoutOptions): string {
     isAdmin,
     mainContentHtml,
     playbarAlbumUrl,
+    libraryContents,
   } = options;
 
   const playbarAttrs = playbarAlbumUrl != null && playbarAlbumUrl !== ""
     ? ` data-album-url="${escapeAttr(playbarAlbumUrl)}"`
+    : "";
+
+  const libraryScript = libraryContents !== undefined
+    ? `<script type="application/json" id="${BOOMBOX_LIBRARY_CONTENTS_SCRIPT_ID}">${
+      serializeLibraryContentsForEmbeddedScript(libraryContents)
+    }</script>\n    `
     : "";
 
   const adminUploadHtml = isAdmin
@@ -172,7 +188,7 @@ export function renderLayout(options: RenderLayoutOptions): string {
       </div>
     </div>
     <playbar-custom-element${playbarAttrs}></playbar-custom-element>
-    <script type="module" src="${JS_PATH}"></script>
+    ${libraryScript}<script type="module" src="${JS_PATH}"></script>
     <script>${TRACK_CLICK_SCRIPT}</script>`;
 }
 
@@ -193,6 +209,8 @@ export interface RenderPageProps {
   headExtra?: string;
   /** Optional PlayBar data-album-url (e.g. on album page). */
   playbarAlbumUrl?: string;
+  /** Library tree for embedded script + `info-client`. */
+  libraryContents?: Files;
 }
 
 /**
@@ -222,6 +240,7 @@ export function renderPage(
     isAdmin,
     mainContentHtml: children.join(""),
     playbarAlbumUrl: props.playbarAlbumUrl,
+    libraryContents: props.libraryContents,
   });
 
   return renderDocument(headHtml, bodyHtml);

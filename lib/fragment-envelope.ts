@@ -3,7 +3,11 @@
  * Single source of truth for the client-server fragment protocol. The client
  * sends X-Requested-With: fetch; the server responds with a JSON envelope.
  * Used by server/ssr.ts and app/components/NavLink/nav-link-custom-element.ts.
+ *
+ * @see `docs/library-catalog-and-info.md` — library catalog, `/info`, fragments.
  */
+
+import type { Files } from "../app/util/files.ts";
 
 /** Request header used to request a fragment (main content + title + meta) instead of full page. */
 export const FRAGMENT_REQUEST_HEADER = "X-Requested-With";
@@ -31,4 +35,9 @@ export interface FragmentEnvelope {
    * The client expects at most one outer <style> wrapper to strip; multiple blocks are undefined.
    */
   styles?: string;
+  /**
+   * Library tree for client-side cover/metadata (`info-client`). Omits a separate `GET /info`
+   * fetch on fragment navigation when present.
+   */
+  libraryContents?: Files;
 }

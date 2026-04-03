@@ -18,6 +18,7 @@ import {
 import { handleAlbumCover } from "./handlers/album.cover.ts";
 import { handleAlbumHtml } from "./handlers/album.html.ts";
 import { handleInfo } from "./handlers/info.ts";
+import { ensureInfoJsonSeededAtStartup } from "./info.ts";
 import { createLogger } from "../app/util/logger.ts";
 
 // Create logger instance for server
@@ -34,6 +35,13 @@ if (validation.adminDisabled) {
     "Admin panel disabled (ADMIN_USER and ADMIN_PASS not set). Protected routes will return 500.",
   );
 }
+
+try {
+  await ensureInfoJsonSeededAtStartup();
+} catch (e) {
+  logger.warn("ensureInfoJsonSeededAtStartup failed", { error: String(e) });
+}
+
 const router = new Router();
 
 // App routes (HTML)

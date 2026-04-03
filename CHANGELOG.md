@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+### Documentation
+* add `docs/library-catalog-and-info.md` (catalog, S3 `info.json`, `GET /info`, `ALLOW_PUBLIC_INFO_JSON`, SSR embed + fragments)
+
+### server
+* persist library catalog to S3 `info.json`, startup seeding, disk TTL + ETag revalidation; optional `ALLOW_PUBLIC_INFO_JSON=false` for private catalog HTTP surface
+* `GET /info`: optional `PUBLIC_HOSTNAME`, conditional **304** with `If-None-Match`, UTF-8 `Content-Type`; doc clarification on request-driven cache only (no background revalidation)
+
+### client
+* embed library `Files` in SSR + fragment `libraryContents`; remove first-party `fetch("/info")` for catalog data
+
 ## [0.10.0] - 2026-03-25
 
 ### General

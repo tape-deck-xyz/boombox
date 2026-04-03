@@ -1,4 +1,7 @@
-/** @file JSON Schema validation for the info cache document (cache/info.json, GET /info). */
+/** @file JSON Schema validation for the info cache document (cache/info.json, S3 `info.json`, GET /info).
+ *
+ * @see `docs/library-catalog-and-info.md`
+ */
 import Ajv2020Import from "npm:ajv@^8.17.1/dist/2020.js";
 import addFormatsImport from "npm:ajv-formats@^3.0.1";
 

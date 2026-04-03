@@ -3,7 +3,10 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import { getUploadedFiles } from "../../../app/util/s3.server.ts";
 import { handleAlbumHtml } from "../../../server/handlers/album.html.ts";
 import { mockFilesWithAlbum, setupStorageEnv } from "./test-utils.ts";
-import { setSendBehavior } from "../s3.server.test-mocks/s3-client.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Album handler returns 400 when artistId is missing", async () => {
   setupStorageEnv();
@@ -38,6 +41,7 @@ Deno.test("Album handler returns full HTML when no fragment header", async () =>
   const html = await response.text();
   assertStringIncludes(html, "<!DOCTYPE html>");
   assertStringIncludes(html, "<html");
+  assertStringIncludes(html, "boombox-library-contents");
   assertStringIncludes(html, "tracklist");
   assertStringIncludes(html, "album-header-custom-element");
 });
@@ -61,6 +65,8 @@ Deno.test("Album handler returns JSON fragment when X-Requested-With fetch", asy
     "application/json",
   );
   const body = await response.json();
+  assertEquals(typeof body.libraryContents, "object");
+  assertEquals(body.libraryContents["Test Artist"] != null, true);
   assertEquals(typeof body.title, "string");
   assertStringIncludes(body.title, "Test Album");
   assertEquals(typeof body.html, "string");
@@ -100,7 +106,7 @@ Deno.test("Album full HTML preloads coverArtUrl and sets data-cover-art-url", as
           IsTruncated: false,
         });
       }
-      return Promise.resolve({});
+      return defaultS3MockReply(command);
     });
     await getUploadedFiles(true);
 
