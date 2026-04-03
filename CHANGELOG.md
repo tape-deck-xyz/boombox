@@ -14,6 +14,21 @@ All notable changes to this project will be documented in this file.
 ### client
 * embed library `Files` in SSR + fragment `libraryContents`; remove first-party `fetch("/info")` for catalog data
 
+## [0.11.0] - 2026-04-03
+
+### e2e
+* extend S3 mock for uploads and add upload flow spec (#17)
+
+### info
+* info.json remotely stored, S3 library catalog, SSR embed, and GET /info hardening
+* S3 library catalog, SSR embed, and GET /info hardening
+
+### test
+* E2E mock GetObject body uses ReadableStream (BlobPart typing)
+
+### General
+* stop ignoring docs directory
+
 ## [0.10.0] - 2026-03-25
 
 ### General
