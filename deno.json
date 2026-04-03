@@ -33,6 +33,7 @@
     "start:e2e": "E2E_MODE=1 ADMIN_USER=e2e-admin ADMIN_PASS=e2e-secret AWS_ACCESS_KEY_ID=e2e AWS_SECRET_ACCESS_KEY=e2e STORAGE_REGION=test STORAGE_BUCKET=test deno run --import-map=app/util/import_map.s3_test.json --allow-net --allow-env --allow-read --allow-write --allow-sys server/main.ts",
     "test:e2e": "sh scripts/run-e2e.sh",
     "test:e2e:blank-slate": "npx playwright test --config=e2e/playwright-blank-slate.config.ts",
+    "test:e2e:upload": "npx playwright test --config=e2e/playwright-upload.config.ts",
     "test:browser": "deno task test:e2e",
     "test:doc": "deno test --doc --allow-net app/util/track.ts",
     "test:all": "deno task test:doc && deno task test:release && deno task test:components && deno task test:util && deno task test:server --no-check --allow-env --allow-read --allow-write",

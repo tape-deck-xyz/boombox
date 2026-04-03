@@ -5,6 +5,10 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { setGetID3TagsReturn } from "./server/s3.server.test-mocks/id3.ts";
 import {
   clearSendCalls as clearS3SendCalls,
+  HeadObjectCommand,
+  PutObjectCommand,
+  resetE2eS3SessionStore,
+  S3Client,
   sendCalls,
   setSendBehavior,
 } from "./server/s3.server.test-mocks/s3-client.ts";
@@ -150,9 +154,12 @@ Deno.test(
   async () => {
     setupEnv();
     clearS3SendCalls();
+    resetE2eS3SessionStore();
     setSendBehavior(null);
     const prev = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
     Deno.env.set("E2E_MODE", "1");
+    Deno.env.delete("E2E_EMPTY");
     try {
       const files = await getUploadedFiles(true);
       assertEquals(Object.keys(files), ["Test Artist"]);
@@ -171,6 +178,265 @@ Deno.test(
       prev != null
         ? Deno.env.set("E2E_MODE", prev)
         : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_EMPTY PutObject session appears in getUploadedFiles listing",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.set("E2E_EMPTY", "1");
+    try {
+      const trackKey = "E2E Artist/E2E Album/1__E2E Track One";
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: trackKey,
+          Body: new Uint8Array([1]),
+        }),
+      );
+
+      const files = await getUploadedFiles(true);
+      assertEquals(Object.keys(files), ["E2E Artist"]);
+      assert("E2E Album" in files["E2E Artist"]);
+      assertEquals(files["E2E Artist"]["E2E Album"].tracks.length, 1);
+      assertEquals(
+        files["E2E Artist"]["E2E Album"].tracks[0].title,
+        "E2E Track One",
+      );
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_MODE merges fixture keys with session PutObject keys",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.delete("E2E_EMPTY");
+    try {
+      const trackKey = "Session Artist/Session Album/1__Session Track";
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: trackKey,
+          Body: new Uint8Array([1]),
+        }),
+      );
+
+      const files = await getUploadedFiles(true);
+      const artists = Object.keys(files).sort();
+      assertEquals(artists, ["Session Artist", "Test Artist"]);
+
+      assertEquals(files["Test Artist"]["Test Album"].tracks.length, 2);
+      assertEquals(files["Session Artist"]["Session Album"].tracks.length, 1);
+      assertEquals(
+        files["Session Artist"]["Session Album"].tracks[0].title,
+        "Session Track",
+      );
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_MODE HeadObject succeeds for merged keys after PutObject",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.delete("E2E_EMPTY");
+    try {
+      const coverKey = "E2E Artist/E2E Album/cover.jpeg";
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: coverKey,
+          Body: new Uint8Array([1, 2]),
+        }),
+      );
+
+      await client.send(
+        new HeadObjectCommand({
+          Bucket: "test-bucket",
+          Key: coverKey,
+        }),
+      );
+
+      await assertRejects(
+        () =>
+          client.send(
+            new HeadObjectCommand({
+              Bucket: "test-bucket",
+              Key: "no/such/object.mp3",
+            }),
+          ),
+        Error,
+        "NotFound",
+      );
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_MODE GetObject returns bytes from session PutObject",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.set("E2E_EMPTY", "1");
+    try {
+      const trackKey = "GetObject Artist/GetObject Album/1__GetObject Track";
+      const payload = new Uint8Array([0xfe, 0xed, 0xfa, 0xce]);
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: trackKey,
+          Body: payload,
+        }),
+      );
+
+      const bytes = await getObjectBytes(trackKey);
+      assertEquals(bytes, payload);
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_MODE PutObject with unrecognized body stores empty bytes",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.set("E2E_EMPTY", "1");
+    try {
+      const trackKey = "Unk Artist/Unk Album/1__Unk Track";
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: trackKey,
+          // @ts-expect-error Intentional: mock must tolerate non-buffer SDK edge types.
+          Body: { notABuffer: true },
+        }),
+      );
+
+      const bytes = await getObjectBytes(trackKey);
+      assertEquals(bytes, new Uint8Array(0));
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
+      setSendBehavior(defaultSendBehavior);
+    }
+  },
+);
+
+Deno.test(
+  "S3 mock - E2E_MODE GetObject returns ArrayBuffer PutObject body",
+  async () => {
+    setupEnv();
+    clearS3SendCalls();
+    resetE2eS3SessionStore();
+    setSendBehavior(null);
+    const prevMode = Deno.env.get("E2E_MODE");
+    const prevEmpty = Deno.env.get("E2E_EMPTY");
+    Deno.env.set("E2E_MODE", "1");
+    Deno.env.set("E2E_EMPTY", "1");
+    try {
+      const trackKey = "ABuf Artist/ABuf Album/1__ABuf Track";
+      const buf = new Uint8Array([7, 8, 0]).buffer;
+      const client = new S3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: "test-bucket",
+          Key: trackKey,
+          Body: buf,
+        }),
+      );
+
+      const bytes = await getObjectBytes(trackKey);
+      assertEquals(bytes, new Uint8Array([7, 8, 0]));
+    } finally {
+      prevMode != null
+        ? Deno.env.set("E2E_MODE", prevMode)
+        : Deno.env.delete("E2E_MODE");
+      prevEmpty != null
+        ? Deno.env.set("E2E_EMPTY", prevEmpty)
+        : Deno.env.delete("E2E_EMPTY");
+      resetE2eS3SessionStore();
       setSendBehavior(defaultSendBehavior);
     }
   },

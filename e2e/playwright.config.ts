@@ -9,7 +9,7 @@ import process from "node:process";
 
 export default defineConfig({
   testDir: "./",
-  testIgnore: "**/blank-slate.spec.ts",
+  testIgnore: ["**/blank-slate.spec.ts", "**/upload-flow.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
