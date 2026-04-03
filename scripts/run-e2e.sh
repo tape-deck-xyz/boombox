@@ -4,4 +4,5 @@
 cd "$(dirname "$0")/.."
 export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
 npx playwright test --config=e2e/playwright.config.ts "$@" &&
-  npx playwright test --config=e2e/playwright-blank-slate.config.ts "$@"
+  npx playwright test --config=e2e/playwright-blank-slate.config.ts "$@" &&
+  npx playwright test --config=e2e/playwright-upload.config.ts "$@"
