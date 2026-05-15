@@ -165,6 +165,11 @@ async function writeStoredS3Etag(etag: string): Promise<void> {
   await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, etag);
 }
 
+async function clearStoredS3Etag(): Promise<void> {
+  await Deno.mkdir("cache", { recursive: true });
+  await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, "");
+}
+
 async function getDiskCacheMtimeMs(): Promise<number | null> {
   try {
     const s = await Deno.stat(INFO_CACHE_PATH);
@@ -224,6 +229,7 @@ export async function regenerateInfoCache(
     const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
     await writeStoredS3Etag(etag);
   } catch (e) {
+    await clearStoredS3Etag();
     logger.warn("Could not persist info.json to S3", { error: String(e) });
   }
   return payload;
@@ -317,6 +323,7 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
       const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
       await writeStoredS3Etag(etag);
     } catch (e) {
+      await clearStoredS3Etag();
       logger.warn("Startup: could not upload info.json from local cache", {
         error: String(e),
       });

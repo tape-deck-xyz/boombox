@@ -7,6 +7,10 @@ import {
   setupAdminEnv,
   setupStorageEnv,
 } from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
@@ -254,6 +258,47 @@ Deno.test("Info handler returns 304 when If-None-Match matches ETag", async () =
   assertEquals(second.status, 304);
   assertEquals(await second.text(), "");
   assertEquals(second.headers.get("ETag"), etag);
+});
+
+Deno.test("Info handler does not return 304 with stale ETag after S3 persistence fails", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  mockFilesWithAlbum();
+
+  const refreshReq = new Request("http://stale-etag.example/info?refresh=1", {
+    method: "GET",
+    headers: { Authorization: createAdminAuthHeader() },
+  });
+  const first = await handleInfo(refreshReq, {});
+  assertEquals(first.status, 200);
+  const staleEtag = first.headers.get("ETag");
+  assertEquals(staleEtag != null, true);
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("S3 persistence failed"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const secondRefresh = await handleInfo(refreshReq, {});
+    assertEquals(secondRefresh.status, 200);
+
+    const conditional = await handleInfo(
+      new Request("http://stale-etag.example/info", {
+        method: "GET",
+        headers: { "If-None-Match": staleEtag! },
+      }),
+      {},
+    );
+    assertEquals(conditional.status, 200);
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test(
