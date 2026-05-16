@@ -122,6 +122,8 @@ Deno.test("shared file utilities handle album ordering, search, data URLs, and m
     "image/png",
   );
   assertEquals(decodeDataUrl(dataUrl)?.body, new Uint8Array([1, 2, 3]));
+  assertEquals(decodeDataUrl("not-a-data-url"), null);
+  assertEquals(decodeDataUrl("data:image/png;base64,%%%"), null);
 
   assertEquals(await getAlbumArtAsBlobUrl(files, "missing/album"), null);
   assertEquals(await getAlbumArtAsDataUrl(files, "missing/album"), null);
