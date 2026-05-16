@@ -3,7 +3,6 @@
  * @see `docs/library-catalog-and-info.md`
  */
 import {
-  getCachedInfoS3Etag,
   isAllowPublicInfoJson,
   isIfNoneMatchSatisfied,
   regenerateInfoCache,
@@ -11,6 +10,16 @@ import {
   withRequestHostname,
 } from "../info.ts";
 import { getAdminAuthStatus, requireAdminAuth } from "../utils/basicAuth.ts";
+
+async function strongEtagForBody(body: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(body),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 /**
  * Handle GET `/info` — returns JSON with contents (files), timestamp, and hostname.
@@ -42,28 +51,25 @@ export async function handleInfo(
     }
   }
 
-  let etagForHttp: string | undefined;
   let payload;
   if (wantsRefresh) {
     payload = await regenerateInfoCache(req);
-    etagForHttp = (await getCachedInfoS3Etag()) ?? undefined;
   } else {
     const resolved = await resolveInfoPayloadForGet(req);
     payload = resolved.payload;
-    etagForHttp = resolved.etagForHttp;
   }
 
   const cacheControl = isAllowPublicInfoJson()
     ? "public, max-age=60"
     : "private, max-age=0, must-revalidate";
+  const body = JSON.stringify(withRequestHostname(payload, req));
+  const etagForHttp = await strongEtagForBody(body);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": cacheControl,
+    ETag: `"${etagForHttp}"`,
   };
-  if (etagForHttp) {
-    headers.ETag = `"${etagForHttp}"`;
-  }
 
   if (
     isIfNoneMatchSatisfied(req.headers.get("If-None-Match"), etagForHttp)
@@ -71,6 +77,5 @@ export async function handleInfo(
     return new Response(null, { status: 304, headers });
   }
 
-  const body = withRequestHostname(payload, req);
-  return new Response(JSON.stringify(body), { headers });
+  return new Response(body, { headers });
 }

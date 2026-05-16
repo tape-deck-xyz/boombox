@@ -2,6 +2,10 @@
 import { assertEquals } from "@std/assert";
 import { handleInfo } from "../../../server/handlers/info.ts";
 import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
+import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
   setupAdminEnv,
@@ -254,6 +258,68 @@ Deno.test("Info handler returns 304 when If-None-Match matches ETag", async () =
   assertEquals(second.status, 304);
   assertEquals(await second.text(), "");
   assertEquals(second.headers.get("ETag"), etag);
+});
+
+Deno.test("Info handler does not return 304 for a changed catalog when S3 info.json persist fails", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  let listedKey = "Old%20Artist/Old%20Album/1__Old%20Track.mp3";
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [{ Key: listedKey, LastModified: new Date() }],
+        IsTruncated: false,
+      });
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const first = await handleInfo(
+      new Request("http://stale-etag.example/info?refresh=1", {
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+      {},
+    );
+    const cachedEtag = first.headers.get("ETag");
+    assertEquals(first.status, 200);
+    assertEquals(cachedEtag != null, true);
+
+    listedKey = "New%20Artist/New%20Album/1__New%20Track.mp3";
+    setSendBehavior((command: unknown) => {
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "ListObjectsV2Command") {
+        return Promise.resolve({
+          Contents: [{ Key: listedKey, LastModified: new Date() }],
+          IsTruncated: false,
+        });
+      }
+      if (name === "PutObjectCommand" && key === "info.json") {
+        return Promise.reject(new Error("mock info.json persist failure"));
+      }
+      return defaultS3MockReply(command);
+    });
+
+    const second = await handleInfo(
+      new Request("http://stale-etag.example/info?refresh=1", {
+        headers: {
+          Authorization: createAdminAuthHeader(),
+          "If-None-Match": cachedEtag!,
+        },
+      }),
+      {},
+    );
+    assertEquals(second.status, 200);
+    const body = await second.json();
+    assertEquals(body.contents["New Artist"]["New Album"].title, "New Album");
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test(
