@@ -13,6 +13,7 @@ import {
   getRemainingAlbumTracks,
   revokeAlbumArtBlobCache,
   search,
+  sortTracksByTrackNumber,
 } from "../../app/util/files.ts";
 
 Deno.test("shared file utilities handle album ordering, search, data URLs, and missing art", async () => {
@@ -57,8 +58,64 @@ Deno.test("shared file utilities handle album ordering, search, data URLs, and m
     trackName: "Opening.mp3",
     trackNumber: "01",
   });
+  assertEquals(getParentDataFromTrackUrl(null), {
+    artistName: null,
+    albumName: null,
+    trackName: null,
+    trackNumber: null,
+  });
+  assertEquals(sortTracksByTrackNumber(olderTrack, newerTrack), 0);
+  assertEquals(
+    sortTracksByTrackNumber(
+      { ...newerTrack, trackNum: 2 },
+      { ...olderTrack, trackNum: 1 },
+    ),
+    1,
+  );
+  assertEquals(
+    sortTracksByTrackNumber(
+      { ...olderTrack, trackNum: 1 },
+      { ...newerTrack, trackNum: 2 },
+    ),
+    -1,
+  );
   assertEquals(getRemainingAlbumTracks(files, olderTrack.url), []);
+  assertEquals(
+    getRemainingAlbumTracks(
+      files,
+      "https://cdn.example/Missing/Missing/01__Missing.mp3",
+    ),
+    [],
+  );
+  assertEquals(
+    getAlbumIdsByRecent({
+      A: {
+        One: {
+          id: "A/One",
+          title: "One",
+          coverArtUrl: null,
+          tracks: [{ ...olderTrack, lastModified: null }],
+        },
+      },
+      B: {
+        Two: {
+          id: "B/Two",
+          title: "Two",
+          coverArtUrl: null,
+          tracks: [{ ...newerTrack, lastModified: null }],
+        },
+      },
+    }).map((album) => album.id),
+    ["A/One", "B/Two"],
+  );
+  assertEquals(search(files, "artist").artists.length, 2);
+  assertEquals(search(files, "album a").albums[0].id, "Artist One/Album A");
   assertEquals(search(files, "finale").tracks[0].title, "Finale");
+  assertEquals(search(files, "not-found"), {
+    artists: [],
+    albums: [],
+    tracks: [],
+  });
 
   const dataUrl = createDataUrlFromBytes(
     new Uint8Array([1, 2, 3]),
