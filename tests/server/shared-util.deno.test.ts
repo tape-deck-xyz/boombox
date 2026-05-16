@@ -127,5 +127,16 @@ Deno.test("shared file utilities handle album ordering, search, data URLs, and m
 
   assertEquals(await getAlbumArtAsBlobUrl(files, "missing/album"), null);
   assertEquals(await getAlbumArtAsDataUrl(files, "missing/album"), null);
+  assertEquals(
+    (await getAlbumArtAsBlobUrl(files, "Artist One/Album A"))?.startsWith(
+      "blob:",
+    ),
+    true,
+  );
+  assertEquals(
+    await getAlbumArtAsDataUrl(files, "Artist One/Album A"),
+    "data:image/png;base64,AQID",
+  );
+  revokeAlbumArtBlobCache("Artist One/Album A");
   revokeAlbumArtBlobCache("missing/album");
 });
