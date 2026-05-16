@@ -4,7 +4,7 @@
     "@aws-sdk/credential-providers": "npm:@aws-sdk/credential-providers@^3.614.0",
     "music-metadata": "npm:music-metadata@^10.0.0",
     "music-metadata-browser": "npm:music-metadata-browser@^2.5.11",
-    "id3js": "npm:id3js@^2.1.1",
+    "id3js": "../../tests/server/s3.server.test-mocks/id3js.ts",
     "extract-colors": "npm:extract-colors@^4.0.6",
     "match-sorter": "npm:match-sorter@^6.3.1",
     "sort-by": "npm:sort-by@^1.2.0",

@@ -63,7 +63,7 @@ export function catalogHostnameForRequest(req: Request): string {
  * True when `If-None-Match` satisfies a strong ETag for conditional GET (HTTP 304).
  *
  * @param ifNoneMatch - Raw `If-None-Match` header (may be comma-separated; weak ETags supported)
- * @param strongEtag - ETag without surrounding double quotes (same shape as stored sidecar / S3 normalize)
+ * @param strongEtag - ETag without surrounding double quotes
  */
 export function isIfNoneMatchSatisfied(
   ifNoneMatch: string | null,

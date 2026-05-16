@@ -109,9 +109,8 @@ flowchart LR
 - **Conditional GET**: Responses may include **`ETag`**; clients can send
   **`If-None-Match`** to receive **304** with an empty body when the catalog is
   unchanged.
-- **HTTP caching**: `GET /info` responses should expose **`ETag`** (aligned with
-  S3 where applicable) and **`Cache-Control`** appropriate for public vs private
-  catalogs.
+- **HTTP caching**: `GET /info` responses should expose a body-derived
+  **`ETag`** and **`Cache-Control`** appropriate for public vs private catalogs.
 - **Cold start**: If the S3 key is missing at startup, **one-time** seed: valid
   local `cache/info.json` if present, else rebuild from listing, then upload to
   S3 (with warnings when inferring from listing).
