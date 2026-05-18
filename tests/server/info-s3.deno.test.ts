@@ -3,8 +3,10 @@ import { assertEquals } from "@std/assert";
 import { mockFilesWithAlbum, setupStorageEnv } from "./handlers/test-utils.ts";
 import {
   clearSendCalls,
+  defaultS3MockReply,
   resetMockInfoJsonObject,
   sendCalls,
+  setSendBehavior,
 } from "./s3.server.test-mocks/s3-client.ts";
 import {
   ensureInfoJsonSeededAtStartup,
@@ -57,6 +59,36 @@ Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has i
 
   clearSendCalls();
   await ensureInfoJsonSeededAtStartup();
+
+  const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
+  assertEquals(putCount, 0);
+});
+
+Deno.test("ensureInfoJsonSeededAtStartup does not PUT when HEAD info.json fails unexpectedly", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  clearSendCalls();
+
+  const { regenerateInfoCache } = await import("../../server/info.ts");
+  await regenerateInfoCache(new Request("http://warm.example/"));
+
+  clearSendCalls();
+  setSendBehavior((command) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "HeadObjectCommand" && key === "info.json") {
+      const err = new Error("AccessDenied");
+      (err as { name: string }).name = "AccessDenied";
+      return Promise.reject(err);
+    }
+    return defaultS3MockReply(command);
+  });
+  try {
+    await ensureInfoJsonSeededAtStartup();
+  } finally {
+    setSendBehavior(null);
+  }
 
   const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
   assertEquals(putCount, 0);
