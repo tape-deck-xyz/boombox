@@ -247,6 +247,7 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       return { payload: diskPayload, etagForHttp: etag ?? undefined };
     }
 
+    let shouldRebuildFromListing = false;
     try {
       const head = await headInfoJsonObjectFromS3();
       const stored = await readStoredS3Etag();
@@ -261,9 +262,26 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
           await writeStoredS3Etag(got.etag);
           return { payload: parsed, etagForHttp: got.etag };
         }
+        shouldRebuildFromListing = true;
+      } else {
+        shouldRebuildFromListing = true;
       }
     } catch {
       // use disk
+    }
+    if (shouldRebuildFromListing) {
+      logger.warn(
+        "info.json missing or invalid in S3; rebuilding from object listing",
+      );
+      try {
+        const payload = await regenerateInfoCache(req);
+        const etag = await readStoredS3Etag();
+        return { payload, etagForHttp: etag ?? undefined };
+      } catch (e) {
+        logger.warn("Could not rebuild info.json from object listing", {
+          error: String(e),
+        });
+      }
     }
     const etag = await readStoredS3Etag();
     return { payload: diskPayload, etagForHttp: etag ?? undefined };
@@ -300,6 +318,9 @@ export function withRequestHostname(
 
 /**
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
+ *
+ * Rebuilds from the bucket listing rather than trusting local disk, because the
+ * disk cache may be older than object storage on another instance.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   let exists = false;
@@ -310,19 +331,6 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
     exists = false;
   }
   if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
-    return;
-  }
 
   const req = new Request("http://localhost/");
   try {

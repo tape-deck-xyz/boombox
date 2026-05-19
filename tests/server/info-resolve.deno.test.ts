@@ -12,8 +12,10 @@ import {
   setupStorageEnv,
 } from "./handlers/test-utils.ts";
 import {
+  clearSendCalls,
   defaultS3MockReply,
   resetMockInfoJsonObject,
+  sendCalls,
   setSendBehavior,
 } from "./s3.server.test-mocks/s3-client.ts";
 
@@ -121,6 +123,65 @@ Deno.test(
         true,
       );
     } finally {
+      setSendBehavior(null);
+    }
+  },
+);
+
+Deno.test(
+  "resolveInfoPayloadForGet rebuilds from listing when S3 info is missing but disk cache exists",
+  async () => {
+    const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+    setupStorageEnv();
+    mockFilesWithAlbum();
+    resetMockInfoJsonObject();
+    clearSendCalls();
+
+    try {
+      Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+      await Deno.mkdir("cache", { recursive: true });
+      await Deno.writeTextFile(
+        INFO_CACHE_PATH,
+        JSON.stringify({
+          contents: {
+            "Old Artist": {
+              "Old Album": {
+                id: "Old Artist/Old Album",
+                title: "Old Album",
+                coverArtUrl: null,
+                tracks: [{
+                  url: "https://old.example/Old%20Artist/Old%20Album/1__Old.mp3",
+                  title: "Old.mp3",
+                  trackNum: 1,
+                  lastModified: null,
+                }],
+              },
+            },
+          },
+          timestamp: 1,
+          hostname: "old.example",
+          schemaVersion: 1,
+        }),
+      );
+      await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, "stale-etag");
+
+      const r = await resolveInfoPayloadForGet(
+        new Request("http://missing-info-json.example/info"),
+      );
+
+      assertEquals("Test Artist" in r.payload.contents, true);
+      assertEquals("Old Artist" in r.payload.contents, false);
+      assertEquals(r.etagForHttp === "stale-etag", false);
+      const putInfoCount = sendCalls.filter((c) => {
+        const name = (c.command as { constructor: { name: string } })
+          .constructor?.name;
+        const key = (c.command as { input?: { Key?: string } }).input?.Key;
+        return name === "PutObjectCommand" && key === "info.json";
+      }).length;
+      assertEquals(putInfoCount >= 1, true);
+    } finally {
+      if (prevTtl === undefined) cleanupTtlEnv();
+      else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
       setSendBehavior(null);
     }
   },
