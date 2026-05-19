@@ -150,7 +150,8 @@ Deno.test(
                 title: "Old Album",
                 coverArtUrl: null,
                 tracks: [{
-                  url: "https://old.example/Old%20Artist/Old%20Album/1__Old.mp3",
+                  url:
+                    "https://old.example/Old%20Artist/Old%20Album/1__Old.mp3",
                   title: "Old.mp3",
                   trackNum: 1,
                   lastModified: null,
