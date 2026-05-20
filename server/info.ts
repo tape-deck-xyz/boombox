@@ -146,11 +146,6 @@ export async function writeInfoCache(payload: InfoPayload): Promise<void> {
   );
 }
 
-/** Last persisted S3 ETag for `info.json` (after put or download). */
-export function getCachedInfoS3Etag(): Promise<string | null> {
-  return readStoredS3Etag();
-}
-
 async function readStoredS3Etag(): Promise<string | null> {
   try {
     const t = (await Deno.readTextFile(INFO_ETAG_CACHE_PATH)).trim();
@@ -163,6 +158,14 @@ async function readStoredS3Etag(): Promise<string | null> {
 async function writeStoredS3Etag(etag: string): Promise<void> {
   await Deno.mkdir("cache", { recursive: true });
   await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, etag);
+}
+
+async function clearStoredS3Etag(): Promise<void> {
+  try {
+    await Deno.remove(INFO_ETAG_CACHE_PATH);
+  } catch {
+    // Missing sidecar is already the safe state when disk and S3 diverge.
+  }
 }
 
 async function getDiskCacheMtimeMs(): Promise<number | null> {
@@ -200,6 +203,18 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
   }
 }
 
+/** Build a strong HTTP validator for the exact JSON payload being returned. */
+export async function infoPayloadHttpEtag(
+  payload: InfoPayload,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256-${
+    Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0")).join("")
+  }`;
+}
+
 /**
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
@@ -224,6 +239,7 @@ export async function regenerateInfoCache(
     const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
     await writeStoredS3Etag(etag);
   } catch (e) {
+    await clearStoredS3Etag();
     logger.warn("Could not persist info.json to S3", { error: String(e) });
   }
   return payload;
@@ -257,6 +273,16 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       if (got) {
         const parsed = parsePayloadFromS3Json(got.bodyText);
         if (parsed) {
+          if (parsed.timestamp < diskPayload.timestamp) {
+            logger.warn(
+              "Ignoring older S3 info.json while disk cache is newer",
+              {
+                diskTimestamp: diskPayload.timestamp,
+                s3Timestamp: parsed.timestamp,
+              },
+            );
+            return { payload: diskPayload, etagForHttp: undefined };
+          }
           await writeInfoCache(parsed);
           await writeStoredS3Etag(got.etag);
           return { payload: parsed, etagForHttp: got.etag };

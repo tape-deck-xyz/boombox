@@ -3,7 +3,7 @@
  * @see `docs/library-catalog-and-info.md`
  */
 import {
-  getCachedInfoS3Etag,
+  infoPayloadHttpEtag,
   isAllowPublicInfoJson,
   isIfNoneMatchSatisfied,
   regenerateInfoCache,
@@ -42,15 +42,12 @@ export async function handleInfo(
     }
   }
 
-  let etagForHttp: string | undefined;
   let payload;
   if (wantsRefresh) {
     payload = await regenerateInfoCache(req);
-    etagForHttp = (await getCachedInfoS3Etag()) ?? undefined;
   } else {
     const resolved = await resolveInfoPayloadForGet(req);
     payload = resolved.payload;
-    etagForHttp = resolved.etagForHttp;
   }
 
   const cacheControl = isAllowPublicInfoJson()
@@ -61,9 +58,9 @@ export async function handleInfo(
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": cacheControl,
   };
-  if (etagForHttp) {
-    headers.ETag = `"${etagForHttp}"`;
-  }
+  const body = withRequestHostname(payload, req);
+  const etagForHttp = await infoPayloadHttpEtag(body);
+  headers.ETag = `"${etagForHttp}"`;
 
   if (
     isIfNoneMatchSatisfied(req.headers.get("If-None-Match"), etagForHttp)
@@ -71,6 +68,5 @@ export async function handleInfo(
     return new Response(null, { status: 304, headers });
   }
 
-  const body = withRequestHostname(payload, req);
   return new Response(JSON.stringify(body), { headers });
 }
