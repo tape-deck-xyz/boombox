@@ -36,6 +36,7 @@ type FragmentEnvelopeOverrides = Partial<{
   meta: { property?: string; name?: string; content: string }[];
   styles: string | undefined;
   libraryContents: Files;
+  playbarAlbumUrl: string | null;
 }>;
 
 /** Creates a Response with application/json Content-Type and a JSON fragment envelope. */
@@ -116,6 +117,8 @@ function setupDOMEnvironment(options?: {
   const main = linkedomDocument.querySelector("main");
   if (nav) nav.innerHTML = "";
   if (main) main.innerHTML = "";
+  const playbars = linkedomDocument.querySelectorAll("playbar-custom-element");
+  for (const playbar of playbars) playbar.remove();
   linkedomDocument.title = "";
 
   // Clear head of fragment-managed content (OG meta, critical styles)
@@ -780,5 +783,75 @@ Deno.test(
       "NavAlbum",
     );
     assertEquals(url, "https://example.com/from-fragment.jpg");
+  },
+);
+
+Deno.test(
+  "NavLinkCustomElement - fragment clears stale playbar album URL when leaving an album page",
+  async () => {
+    setupDOMEnvironment({
+      fetch: createFetchThatRecordsCalls(
+        createJsonFragmentResponse({
+          title: "Home",
+          html: "<div>home</div>",
+          playbarAlbumUrl: null,
+        }),
+      ),
+    });
+
+    const playbar = linkedomDocument.createElement("playbar-custom-element");
+    playbar.setAttribute(
+      "data-album-url",
+      "https://test-bucket.s3.test-region.amazonaws.com/Old/Album",
+    );
+    linkedomDocument.body.appendChild(playbar);
+
+    await import("./nav-link-custom-element.ts");
+
+    const el = createNavLink({ href: "/" });
+    dispatchClick(el);
+
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    assertEquals(
+      playbar.getAttribute("data-album-url"),
+      null,
+      "home fragment must clear stale album context from the persistent playbar",
+    );
+  },
+);
+
+Deno.test(
+  "NavLinkCustomElement - fragment sets playbar album URL when entering an album page",
+  async () => {
+    const nextAlbumUrl =
+      "https://test-bucket.s3.test-region.amazonaws.com/New/Album";
+    setupDOMEnvironment({
+      fetch: createFetchThatRecordsCalls(
+        createJsonFragmentResponse({
+          title: "Album",
+          html: "<div>album</div>",
+          playbarAlbumUrl: nextAlbumUrl,
+        }),
+      ),
+    });
+
+    const playbar = linkedomDocument.createElement("playbar-custom-element");
+    playbar.setAttribute(
+      "data-album-url",
+      "https://test-bucket.s3.test-region.amazonaws.com/Old/Album",
+    );
+    linkedomDocument.body.appendChild(playbar);
+
+    await import("./nav-link-custom-element.ts");
+
+    const el = createNavLink({ href: "/artists/New/albums/Album" });
+    dispatchClick(el);
+
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    assertEquals(playbar.getAttribute("data-album-url"), nextAlbumUrl);
   },
 );

@@ -67,6 +67,10 @@ Deno.test("Album handler returns JSON fragment when X-Requested-With fetch", asy
   const body = await response.json();
   assertEquals(typeof body.libraryContents, "object");
   assertEquals(body.libraryContents["Test Artist"] != null, true);
+  assertEquals(
+    body.playbarAlbumUrl,
+    "https://test-bucket.s3.test-region.amazonaws.com/Test Artist/Test Album",
+  );
   assertEquals(typeof body.title, "string");
   assertStringIncludes(body.title, "Test Album");
   assertEquals(typeof body.html, "string");

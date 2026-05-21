@@ -101,6 +101,7 @@ Deno.test("Index handler returns JSON fragment when X-Requested-With fetch", asy
   const body = await response.json();
   assertEquals(typeof body.libraryContents, "object");
   assertEquals(body.libraryContents !== null, true);
+  assertEquals(body.playbarAlbumUrl, null);
   assertEquals(typeof body.title, "string");
   assertEquals(body.title.length > 0, true);
   assertEquals(typeof body.html, "string");
