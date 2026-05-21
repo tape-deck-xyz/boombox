@@ -67,6 +67,19 @@ function applyEnvelope(envelope: FragmentEnvelope): void {
   if (envelope.libraryContents !== undefined) {
     setLibraryContentsFromServer(envelope.libraryContents);
   }
+  if ("playbarAlbumUrl" in envelope) {
+    const playbar = document.querySelector("playbar-custom-element");
+    if (playbar) {
+      if (
+        typeof envelope.playbarAlbumUrl === "string" &&
+        envelope.playbarAlbumUrl.length > 0
+      ) {
+        playbar.setAttribute("data-album-url", envelope.playbarAlbumUrl);
+      } else {
+        playbar.removeAttribute("data-album-url");
+      }
+    }
+  }
   document.title = envelope.title;
 
   if (envelope.meta == null || envelope.meta.length === 0) {

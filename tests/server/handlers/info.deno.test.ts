@@ -7,6 +7,10 @@ import {
   setupAdminEnv,
   setupStorageEnv,
 } from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
@@ -47,6 +51,49 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname when ref
   assertEquals(typeof body.timestamp, "number");
   assertEquals(body.hostname, "example.com");
   assertEquals(typeof body.schemaVersion, "number");
+});
+
+Deno.test("Info handler returns 500 when refresh cannot persist canonical info.json", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("put denied"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const response = await handleInfo(
+      new Request("http://example.com/info?refresh=1", {
+        method: "GET",
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+      {},
+    );
+
+    assertEquals(response.status, 500);
+    assertEquals(
+      await response.text(),
+      "Could not persist catalog info.json",
+    );
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test("Info handler uses cache when no refresh param", async () => {

@@ -40,4 +40,9 @@ export interface FragmentEnvelope {
    * fetch on fragment navigation when present.
    */
   libraryContents?: Files;
+  /**
+   * Album context for the persistent playbar. Album pages set this to the album
+   * S3 URL; non-album pages set `null` to clear stale queue context.
+   */
+  playbarAlbumUrl?: string | null;
 }

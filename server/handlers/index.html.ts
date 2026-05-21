@@ -78,6 +78,7 @@ export async function handleIndexHtml(
       html: mainContentHtml,
       meta: [] as Array<{ property?: string; name?: string; content: string }>,
       libraryContents: files,
+      playbarAlbumUrl: null,
     };
     return new Response(JSON.stringify(envelope), {
       headers: { "Content-Type": "application/json" },

@@ -45,7 +45,13 @@ export async function handleInfo(
   let etagForHttp: string | undefined;
   let payload;
   if (wantsRefresh) {
-    payload = await regenerateInfoCache(req);
+    try {
+      payload = await regenerateInfoCache(req);
+    } catch {
+      return new Response("Could not persist catalog info.json", {
+        status: 500,
+      });
+    }
     etagForHttp = (await getCachedInfoS3Etag()) ?? undefined;
   } else {
     const resolved = await resolveInfoPayloadForGet(req);

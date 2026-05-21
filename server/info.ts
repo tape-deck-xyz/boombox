@@ -219,13 +219,11 @@ export async function regenerateInfoCache(
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
+  assertValidInfoDocument(payload);
+  const serialized = JSON.stringify(payload);
+  const etag = await putInfoJsonObjectToS3(serialized);
+  await writeStoredS3Etag(etag);
   await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
   return payload;
 }
 

@@ -151,6 +151,7 @@ export async function handleAlbumHtml(
       meta,
       styles: albumPageCriticalCss,
       libraryContents: files,
+      playbarAlbumUrl: albumUrl,
     };
     return new Response(JSON.stringify(envelope), {
       headers: { "Content-Type": "application/json" },

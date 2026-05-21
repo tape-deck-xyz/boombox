@@ -1,7 +1,16 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -177,3 +186,65 @@ Deno.test({
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
   sanitizeOps: false,
 });
+
+Deno.test(
+  "handleUpload returns 500 when uploaded files cannot be written to canonical info.json",
+  async () => {
+    const originalUser = Deno.env.get("ADMIN_USER");
+    const originalPass = Deno.env.get("ADMIN_PASS");
+    setupStorageEnv();
+    Deno.env.set("ADMIN_USER", ADMIN_USER);
+    Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+    setSendBehavior((command: unknown) => {
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      if (name === "ListObjectsV2Command") {
+        return Promise.resolve({
+          Contents: [
+            {
+              Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
+              LastModified: new Date(),
+            },
+          ],
+          IsTruncated: false,
+        });
+      }
+      if (name === "PutObjectCommand" && key === "info.json") {
+        return Promise.reject(new Error("put denied"));
+      }
+      return defaultS3MockReply(command);
+    });
+
+    try {
+      const fileBytes = await Deno.readFile(
+        new URL("../../../test_data/no-cover.mp3", import.meta.url),
+      );
+      const formData = new FormData();
+      formData.append(
+        "files",
+        new File([fileBytes], "no-cover.mp3", { type: "audio/mpeg" }),
+      );
+      const response = await handleUpload(
+        new Request("http://localhost:8000/", {
+          method: "POST",
+          body: formData,
+          headers: { Authorization: createAdminAuthHeader() },
+        }),
+      );
+
+      assertEquals(response.status, 500);
+      assertEquals(
+        (await response.text()).startsWith("Upload catalog refresh failed:"),
+        true,
+      );
+    } finally {
+      setSendBehavior(null);
+      if (originalUser === undefined) Deno.env.delete("ADMIN_USER");
+      else Deno.env.set("ADMIN_USER", originalUser);
+      if (originalPass === undefined) Deno.env.delete("ADMIN_PASS");
+      else Deno.env.set("ADMIN_PASS", originalPass);
+    }
+  },
+  { sanitizeResources: false, sanitizeOps: false },
+);

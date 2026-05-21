@@ -83,20 +83,19 @@ export async function handleUpload(req: Request): Promise<Response> {
       }
     }
 
-    // Force refresh of file cache and regenerate info cache when uploads succeeded
-    let uploadedFiles;
-    try {
-      uploadedFiles = await getUploadedFiles(true);
-    } catch (error) {
-      console.error("Failed to refresh file cache:", error);
-      // Don't fail the entire request if cache refresh fails
-    }
-
-    if (successCount > 0 && uploadedFiles) {
+    if (successCount > 0) {
       try {
+        // Force refresh of file cache and regenerate the canonical catalog when uploads succeeded.
+        const uploadedFiles = await getUploadedFiles(true);
         await regenerateInfoCache(req, uploadedFiles);
       } catch (error) {
-        console.error("Failed to regenerate info cache:", error);
+        console.error("Failed to refresh catalog after upload:", error);
+        const errorMessage = error instanceof Error
+          ? error.message
+          : "Unknown error";
+        return new Response(`Upload catalog refresh failed: ${errorMessage}`, {
+          status: 500,
+        });
       }
     }
 
