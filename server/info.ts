@@ -299,30 +299,20 @@ export function withRequestHostname(
 }
 
 /**
- * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
+ * One-shot startup: ensure `info.json` exists in S3 when the object is absent.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   let exists = false;
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
-  }
-  if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
+  } catch (e) {
+    logger.warn("Startup: could not check whether info.json exists in S3", {
+      error: String(e),
+    });
     return;
   }
+  if (exists) return;
 
   const req = new Request("http://localhost/");
   try {
