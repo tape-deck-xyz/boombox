@@ -24,7 +24,7 @@
  * ```
  */
 
-import { getRemainingAlbumTracks } from "../../../util/track.ts";
+import { escapeHtml, getRemainingAlbumTracks } from "../../../util/track.ts";
 import "../../../icons/playlist/index.ts";
 
 /**
@@ -481,8 +481,9 @@ export class PlaylistCustomElement extends HTMLElement {
         button.className = "track-btn";
         button.type = "button";
         button.setAttribute("data-track-idx", idx.toString());
+        const escapedTitle = escapeHtml(track.title) ?? "";
         button.innerHTML = `
-          <span class="track-title">${track.title}</span>
+          <span class="track-title">${escapedTitle}</span>
           <svg style="width:1em;height:1em;" fill="none" stroke="currentColor" stroke-width="1.7"
               viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round"

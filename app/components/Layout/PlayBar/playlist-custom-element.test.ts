@@ -670,6 +670,31 @@ Deno.test("PlaylistCustomElement - dispatches select event when track clicked", 
   assertEquals(customEvent.detail.trackNum, 1);
 });
 
+Deno.test("PlaylistCustomElement - does not inject track title HTML", () => {
+  const element = createTestElement();
+  const payload = '<img src=x onerror="alert(1)">';
+
+  const testElement = element as unknown as TestPlaylistElement & {
+    albumUrl: string;
+    renderPopover: () => void;
+  };
+  testElement.albumUrl = "/api/albums/123";
+  testElement.popoverOpen = true;
+  testElement.remainingTracks = [
+    { url: "/track1.mp3", title: payload, trackNum: 1 },
+  ];
+  testElement.renderPopover();
+
+  const trackListAppend = shadowRootElements.trackList!
+    .appendChild as ReturnType<typeof createMockFn>;
+  const li = trackListAppend.calls[0][0] as {
+    appendChild: ReturnType<typeof createMockFn>;
+  };
+  const button = li.appendChild.calls[0][0] as HTMLButtonElement;
+
+  assertEquals(button.innerHTML.includes(payload), false);
+});
+
 Deno.test("PlaylistCustomElement - shows no tracks message when empty", () => {
   const element = createTestElement();
   (element as unknown as TestPlaylistElement).remainingTracks = [];
