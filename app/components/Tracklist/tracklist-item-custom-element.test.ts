@@ -931,6 +931,21 @@ Deno.test("TracklistItemCustomElement - should handle special characters in trac
   assertEquals(trackName.textContent, 'Song & Title with "quotes"');
 });
 
+Deno.test("TracklistItemCustomElement - renders track metadata as text", async () => {
+  setupDOMEnvironment();
+  await import("./tracklist-item-custom-element.ts");
+
+  const payload = '<img src=x onerror="alert(1)">';
+  const el = createTracklistItem({
+    "data-track-name": payload,
+  });
+
+  const trackName = el.querySelector(".track-name");
+  assertExists(trackName);
+  assertEquals(trackName.textContent, payload);
+  assertEquals(trackName.querySelector("img"), null);
+});
+
 Deno.test("TracklistItemCustomElement - should handle special characters in artist name", async () => {
   setupDOMEnvironment();
   await import("./tracklist-item-custom-element.ts");
