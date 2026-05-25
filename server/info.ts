@@ -269,7 +269,7 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
     return { payload: diskPayload, etagForHttp: etag ?? undefined };
   }
 
-  const got = await getInfoJsonObjectFromS3().catch(() => null);
+  const got = await getInfoJsonObjectFromS3();
   if (got) {
     const parsed = parsePayloadFromS3Json(got.bodyText);
     if (parsed) {
@@ -306,8 +306,11 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
+  } catch (e) {
+    logger.warn("Startup: could not check S3 info.json; skipping seed", {
+      error: String(e),
+    });
+    return;
   }
   if (exists) return;
 
