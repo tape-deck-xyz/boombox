@@ -204,15 +204,11 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
  * @param req - Request used to derive hostname in the persisted payload
- * @param files - Optional pre-fetched files; if omitted, fetches from S3
  * @returns The generated document
  */
-export async function regenerateInfoCache(
-  req: Request,
-  files?: Files,
-): Promise<InfoPayload> {
+async function regenerateInfoCacheNow(req: Request): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
-  const contents = files ?? await getUploadedFiles(true);
+  const contents = await getUploadedFiles(true);
   const payload: InfoPayload = {
     contents,
     timestamp: Date.now(),
@@ -227,6 +223,24 @@ export async function regenerateInfoCache(
     logger.warn("Could not persist info.json to S3", { error: String(e) });
   }
   return payload;
+}
+
+let regenerateInfoCacheTail: Promise<unknown> = Promise.resolve();
+
+/**
+ * Regenerate the info cache from a fresh S3 listing and persist the result.
+ *
+ * Rebuilds are serialized so a slower write from an older listing cannot
+ * overwrite a newer catalog.
+ *
+ * @param req - Request used to derive hostname in the persisted payload
+ * @returns The generated document
+ */
+export function regenerateInfoCache(req: Request): Promise<InfoPayload> {
+  const run = () => regenerateInfoCacheNow(req);
+  const result = regenerateInfoCacheTail.then(run, run);
+  regenerateInfoCacheTail = result.catch(() => undefined);
+  return result;
 }
 
 /**
@@ -299,28 +313,16 @@ export function withRequestHostname(
 }
 
 /**
- * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
+ * One-shot startup: ensure `info.json` exists in S3 when S3 confirms it is missing.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
   try {
     const head = await headInfoJsonObjectFromS3();
-    exists = head != null;
-  } catch {
-    exists = false;
-  }
-  if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
+    if (head) return;
+  } catch (e) {
+    logger.warn("Startup: could not verify info.json existence in S3", {
+      error: String(e),
+    });
     return;
   }
 
