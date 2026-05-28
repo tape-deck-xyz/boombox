@@ -93,6 +93,8 @@ export type InfoPayload = {
   schemaVersion: number;
 };
 
+let regenerateInfoCacheQueue: Promise<void> = Promise.resolve();
+
 /**
  * When unset or not `false`, `GET /info` is available without admin credentials
  * (see `docs/library-catalog-and-info.md`).
@@ -208,6 +210,25 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * @returns The generated document
  */
 export async function regenerateInfoCache(
+  req: Request,
+  files?: Files,
+): Promise<InfoPayload> {
+  let releaseQueue: () => void = () => {};
+  const previousRegeneration = regenerateInfoCacheQueue;
+  regenerateInfoCacheQueue = new Promise((resolve) => {
+    releaseQueue = resolve;
+  });
+
+  await previousRegeneration;
+
+  try {
+    return await regenerateInfoCacheUnlocked(req, files);
+  } finally {
+    releaseQueue();
+  }
+}
+
+async function regenerateInfoCacheUnlocked(
   req: Request,
   files?: Files,
 ): Promise<InfoPayload> {
