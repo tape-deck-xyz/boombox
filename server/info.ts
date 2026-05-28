@@ -213,7 +213,7 @@ export async function regenerateInfoCache(
   req: Request,
   files?: Files,
 ): Promise<InfoPayload> {
-  let releaseQueue: () => void = () => {};
+  let releaseQueue: () => void = undefined as never;
   const previousRegeneration = regenerateInfoCacheQueue;
   regenerateInfoCacheQueue = new Promise((resolve) => {
     releaseQueue = resolve;
