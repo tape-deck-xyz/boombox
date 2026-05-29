@@ -47,7 +47,7 @@
  * **Event Detail:**
  * ```typescript
  * {
- *   trackUrl: string; // The decoded track URL from data-track-url attribute
+ *   trackUrl: string; // The track URL from data-track-url attribute
  * }
  * ```
  *
@@ -165,7 +165,7 @@ export class TracklistItemCustomElement extends HTMLElement {
   /**
    * Handles click events on the track item.
    *
-   * Dispatches a custom `track-click` event with the decoded track URL
+   * Dispatches a custom `track-click` event with the track URL
    * in the event detail. The event bubbles up the DOM tree.
    *
    * @private
@@ -176,9 +176,7 @@ export class TracklistItemCustomElement extends HTMLElement {
       {
         bubbles: true,
         detail: {
-          trackUrl: decodeURIComponent(
-            this.getAttribute("data-track-url") || "",
-          ),
+          trackUrl: this.getAttribute("data-track-url") || "",
         },
       },
     );
