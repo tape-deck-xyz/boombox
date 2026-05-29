@@ -806,11 +806,12 @@ Deno.test("TracklistItemCustomElement - should dispatch track-click event on cli
   assertEquals(eventDetail!.trackUrl, "/path/to/track.mp3");
 });
 
-Deno.test("TracklistItemCustomElement - should decode URL-encoded track URL in event", async () => {
+Deno.test("TracklistItemCustomElement - should preserve URL-encoded track URL in event", async () => {
   setupDOMEnvironment();
   await import("./tracklist-item-custom-element.ts");
 
-  const encodedUrl = encodeURIComponent("/path/with spaces/track.mp3");
+  const encodedUrl =
+    "https://test-bucket.s3.test-region.amazonaws.com/Artist%3F/Album%20%231/1__Who%20Are%20You%3F.mp3";
   const el = createTracklistItem({ "data-track-url": encodedUrl });
 
   let eventDetail: { trackUrl: string } | null = null;
@@ -825,7 +826,7 @@ Deno.test("TracklistItemCustomElement - should decode URL-encoded track URL in e
   dispatchClick(el);
 
   assertExists(eventDetail);
-  assertEquals(eventDetail!.trackUrl, "/path/with spaces/track.mp3");
+  assertEquals(eventDetail!.trackUrl, encodedUrl);
 });
 
 Deno.test("TracklistItemCustomElement - should handle empty track URL in event", async () => {

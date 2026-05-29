@@ -650,11 +650,40 @@ Deno.test("getUploadedFiles - parses S3 keys into Files structure", async () => 
   assertEquals(files["Artist One"]["Album A"].tracks[0].trackNum, 1);
   assertEquals(
     files["Artist One"]["Album A"].tracks[0].url,
-    "https://test-bucket.s3.test-region.amazonaws.com/Artist One/Album A/1__First Track.mp3",
+    "https://test-bucket.s3.test-region.amazonaws.com/Artist%20One/Album%20A/1__First%20Track.mp3",
   );
   assertEquals(files["Artist One"]["Album A"].coverArtUrl, null);
   assertEquals(files["Artist Two"]["Album B"].tracks[0].title, "Solo.mp3");
   assertEquals(files["Artist Two"]["Album B"].coverArtUrl, null);
+});
+
+Deno.test("getUploadedFiles percent-encodes reserved characters in track URLs", async () => {
+  setupEnv();
+  clearS3SendCalls();
+  const now = new Date();
+  setSendBehavior((command) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Artist?/Album #1/1__Who Are You?.mp3",
+            LastModified: now,
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return Promise.resolve({});
+  });
+
+  const files = await getUploadedFiles(true);
+
+  assertEquals(
+    files["Artist?"]["Album #1"].tracks[0].url,
+    "https://test-bucket.s3.test-region.amazonaws.com/Artist%3F/Album%20%231/1__Who%20Are%20You%3F.mp3",
+  );
 });
 
 Deno.test(
@@ -802,7 +831,7 @@ Deno.test("handleS3Upload - should handle file upload with cover image", async (
 
   assertEquals(
     result?.includes(
-      "test-bucket.s3.test-region.amazonaws.com/Test Artist/Test Album/1__Test Song",
+      "test-bucket.s3.test-region.amazonaws.com/Test%20Artist/Test%20Album/1__Test%20Song",
     ),
     true,
   );
@@ -1043,7 +1072,7 @@ Deno.test("handleS3Upload continues with upload when HeadObject throws non-NotFo
   assert(
     result != null &&
       result.includes("test-bucket.s3.test-region.amazonaws.com") &&
-      result.includes("1__Test Song"),
+      result.includes("1__Test%20Song"),
     `Expected S3 URL in result, got: ${result}`,
   );
   const putCalls = sendCalls.filter(

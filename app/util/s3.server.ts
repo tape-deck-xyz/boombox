@@ -228,8 +228,11 @@ export async function uploadStreamToS3(
     throw error;
   }
 
-  const url =
-    `https://${config.STORAGE_BUCKET}.s3.${config.STORAGE_REGION}.amazonaws.com/${filename}`;
+  const url = buildPublicS3ObjectUrl(
+    filename,
+    config.STORAGE_BUCKET,
+    config.STORAGE_REGION,
+  );
   logger.info(
     `Upload finished. Total time: ${Date.now() - startTime}ms. URL: ${url}`,
   );
@@ -495,6 +498,24 @@ export async function handleS3Upload(
 // Reading ////////////////////////////////////////////////////////////////////
 
 /**
+ * Public HTTPS URL for an S3 object key.
+ *
+ * Each key segment is passed through `encodeURIComponent` so reserved URL
+ * characters in metadata-derived S3 keys (for example `?` or `#`) address the
+ * stored object instead of becoming query strings or fragments.
+ */
+function buildPublicS3ObjectUrl(
+  key: string,
+  bucket: string,
+  region: string,
+): string {
+  const path = key.split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `https://${bucket}.s3.${region}.amazonaws.com/${path}`;
+}
+
+/**
  * Public HTTPS URL for an album’s `cover.jpeg` object.
  *
  * Each path segment is passed through `encodeURIComponent` so the result is a valid absolute
@@ -612,8 +633,11 @@ const fileFetch = async (): Promise<Files> => {
           continue;
         }
 
-        const trackUrl =
-          `https://${config.STORAGE_BUCKET}.s3.${config.STORAGE_REGION}.amazonaws.com/${cur.Key}`;
+        const trackUrl = buildPublicS3ObjectUrl(
+          cur.Key,
+          config.STORAGE_BUCKET,
+          config.STORAGE_REGION,
+        );
         const trackMetadata = await deriveTrackMetadata(trackUrl, {
           skipId3: true,
         });
