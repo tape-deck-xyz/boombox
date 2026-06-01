@@ -179,6 +179,24 @@ const albumHeaderStyles = `
   }
 `;
 
+// TEMPLATE ///////////////////////////////////////////////////////////////////
+
+const template = document.createElement("template");
+
+template.innerHTML = `
+  <style>${albumHeaderStyles}</style>
+  <header class="album-header" id="albumHeader">
+    <div class="album-content">
+      <div class="album-art"><album-image-custom-element></album-image-custom-element></div>
+      <div class="album-info">
+        <h1 class="album-title"></h1>
+        <p class="album-artist"></p>
+        <p class="album-meta">2024 • 12 songs • 48 min</p>
+      </div>
+    </div>
+  </header>
+`;
+
 /**
  * Custom element for the sticky, shrinking header on an album page.
  *
@@ -232,27 +250,17 @@ export class AlbumHeaderCustomElement extends HTMLElement {
     }
 
     this.attachShadow({ mode: "open" });
-
-    const template = document.createElement("template");
-    template.innerHTML = `
-  <style>${albumHeaderStyles}</style>
-  <header class="album-header" id="albumHeader">
-    <div class="album-content">
-      <div class="album-art"><album-image-custom-element data-album-url="${albumUrl}"></album-image-custom-element></div>
-      <div class="album-info">
-        <h1 class="album-title">${albumId}</h1>
-        <p class="album-artist">${artistId}</p>
-        <p class="album-meta">2024 • 12 songs • 48 min</p>
-      </div>
-    </div>
-  </header>
-`;
     this.shadowRoot!.appendChild(template.content.cloneNode(true));
 
     const coverArtUrl = this.getAttribute("data-cover-art-url");
     const albumImage = this.shadowRoot!.querySelector(
       "album-image-custom-element",
     );
+    albumImage?.setAttribute("data-album-url", albumUrl);
+    const albumTitle = this.shadowRoot!.querySelector(".album-title");
+    const albumArtist = this.shadowRoot!.querySelector(".album-artist");
+    if (albumTitle) albumTitle.textContent = albumId;
+    if (albumArtist) albumArtist.textContent = artistId;
     if (coverArtUrl && albumImage) {
       albumImage.setAttribute("data-cover-art-url", coverArtUrl);
     }
