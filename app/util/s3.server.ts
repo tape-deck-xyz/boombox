@@ -720,7 +720,13 @@ export const getUploadedFiles = (force?: boolean): Promise<Files> => {
 
   if (!filesFetchCache) {
     logger.debug("Cache miss, fetching files from S3");
-    filesFetchCache = fileFetch();
+    const cachedFetch = fileFetch().catch((err) => {
+      if (filesFetchCache === cachedFetch) {
+        filesFetchCache = null;
+      }
+      throw err;
+    });
+    filesFetchCache = cachedFetch;
   } else {
     logger.debug("Using cached file list");
   }
