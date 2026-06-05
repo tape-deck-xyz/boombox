@@ -302,12 +302,15 @@ export function withRequestHostname(
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
+  let exists: boolean;
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
+  } catch (e) {
+    logger.warn("Startup: could not verify whether info.json exists in S3", {
+      error: String(e),
+    });
+    return;
   }
   if (exists) return;
 
