@@ -2,7 +2,8 @@
  *
  * Serves **`artist/album/cover.jpeg`** from S3 when that object exists; otherwise loads
  * the first track (by track number), extracts ID3 picture via {@link getID3Tags}, and
- * decodes with {@link decodeDataUrl}. Responses are cached in memory by album key.
+ * decodes with {@link decodeDataUrl}. Responses are cached in memory by album
+ * key and invalidated when the catalog's cover-art URL changes.
  */
 
 import { decodeDataUrl } from "../../app/util/data-url.ts";
@@ -20,7 +21,7 @@ const logger = createLogger("Album Cover");
 /** In-memory cache: album key -> { body, contentType } */
 const coverCache = new Map<
   string,
-  { body: Uint8Array; contentType: string }
+  { body: Uint8Array; contentType: string; coverArtUrl: string | null }
 >();
 
 /** Clears in-memory cover responses (for tests). */
@@ -75,8 +76,14 @@ export async function handleAlbumCover(
   }
 
   const cacheKey = `${artistId}/${albumId}`;
+  const files = await getUploadedFiles();
+  const album = getAlbum(files, cacheKey);
+  if (!album) {
+    return new Response("Album not found", { status: 404 });
+  }
+
   const cached = coverCache.get(cacheKey);
-  if (cached) {
+  if (cached && cached.coverArtUrl === album.coverArtUrl) {
     logger.debug("Serving cover from cache", { cacheKey });
     const body = new Blob([new Uint8Array(cached.body)], {
       type: cached.contentType,
@@ -88,11 +95,13 @@ export async function handleAlbumCover(
       },
     });
   }
-
-  const files = await getUploadedFiles();
-  const album = getAlbum(files, cacheKey);
-  if (!album) {
-    return new Response("Album not found", { status: 404 });
+  if (cached) {
+    logger.debug("Cover cache stale after catalog refresh", {
+      cacheKey,
+      cachedCoverArtUrl: cached.coverArtUrl,
+      coverArtUrl: album.coverArtUrl,
+    });
+    coverCache.delete(cacheKey);
   }
 
   const tracks = [...album.tracks].sort(sortTracksByTrackNumber);
@@ -106,7 +115,11 @@ export async function handleAlbumCover(
 
   try {
     const jpegBytes = await getObjectBytes(coverKey);
-    const entry = { body: jpegBytes, contentType: "image/jpeg" };
+    const entry = {
+      body: jpegBytes,
+      contentType: "image/jpeg",
+      coverArtUrl: album.coverArtUrl,
+    };
     coverCache.set(cacheKey, entry);
     logger.debug("Cached cover from S3 object", { cacheKey, coverKey });
     const body = new Blob([new Uint8Array(jpegBytes)], {
@@ -137,7 +150,7 @@ export async function handleAlbumCover(
     if (!decoded) {
       return new Response("Invalid cover image data", { status: 500 });
     }
-    coverCache.set(cacheKey, decoded);
+    coverCache.set(cacheKey, { ...decoded, coverArtUrl: null });
     logger.debug("Cached cover from ID3", { cacheKey });
     const body = new Blob([new Uint8Array(decoded.body)], {
       type: decoded.contentType,

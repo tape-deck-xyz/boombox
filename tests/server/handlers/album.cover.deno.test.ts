@@ -270,6 +270,81 @@ const defaultId3Mock = {
 } as const;
 
 Deno.test(
+  "Album cover handler invalidates an ID3 fallback cache after cover.jpeg appears",
+  async () => {
+    setupStorageEnv();
+    clearAlbumCoverHandlerCache();
+    let hasCoverObject = false;
+    const s3CoverBytes = new Uint8Array([9, 8, 7, 6]);
+    try {
+      setGetID3TagsReturn({ ...defaultId3Mock });
+      setSendBehavior((command: unknown) => {
+        const name = (command as { constructor: { name: string } }).constructor
+          ?.name;
+        if (name === "ListObjectsV2Command") {
+          return Promise.resolve({
+            Contents: [
+              {
+                Key: "Test Artist/Test Album/1__T.mp3",
+                LastModified: new Date(),
+              },
+              ...(hasCoverObject
+                ? [{
+                  Key: "Test Artist/Test Album/cover.jpeg",
+                  LastModified: new Date(),
+                }]
+                : []),
+            ],
+            IsTruncated: false,
+          });
+        }
+        if (name === "GetObjectCommand") {
+          const key = (command as { input: { Key: string } }).input.Key;
+          if (key === "Test Artist/Test Album/cover.jpeg") {
+            if (!hasCoverObject) {
+              return Promise.reject(new Error("NoSuchKey"));
+            }
+            return Promise.resolve({
+              Body: new Response(s3CoverBytes).body!,
+            });
+          }
+          return Promise.resolve({
+            Body: new Response(new Uint8Array([1, 2, 3])).body!,
+          });
+        }
+        return Promise.resolve({});
+      });
+
+      await getUploadedFiles(true);
+      const params = {
+        artistId: "Test Artist",
+        albumId: "Test Album",
+      };
+      const first = await handleAlbumCover(
+        new Request("http://localhost/cover"),
+        params,
+      );
+      assertEquals(first.status, 200);
+
+      hasCoverObject = true;
+      await getUploadedFiles(true);
+
+      const second = await handleAlbumCover(
+        new Request("http://localhost/cover"),
+        params,
+      );
+
+      assertEquals(second.status, 200);
+      assertEquals(new Uint8Array(await second.arrayBuffer()), s3CoverBytes);
+    } finally {
+      setSendBehavior(null);
+      setGetID3TagsReturn({ ...defaultId3Mock });
+      await getUploadedFiles(true);
+    }
+  },
+);
+
+Deno.test(
   "Album cover handler returns 404 when ID3 has no embedded image and no S3 cover",
   async () => {
     setupStorageEnv();
