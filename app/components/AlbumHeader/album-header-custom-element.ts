@@ -238,10 +238,10 @@ export class AlbumHeaderCustomElement extends HTMLElement {
   <style>${albumHeaderStyles}</style>
   <header class="album-header" id="albumHeader">
     <div class="album-content">
-      <div class="album-art"><album-image-custom-element data-album-url="${albumUrl}"></album-image-custom-element></div>
+      <div class="album-art"><album-image-custom-element></album-image-custom-element></div>
       <div class="album-info">
-        <h1 class="album-title">${albumId}</h1>
-        <p class="album-artist">${artistId}</p>
+        <h1 class="album-title"></h1>
+        <p class="album-artist"></p>
         <p class="album-meta">2024 • 12 songs • 48 min</p>
       </div>
     </div>
@@ -253,9 +253,16 @@ export class AlbumHeaderCustomElement extends HTMLElement {
     const albumImage = this.shadowRoot!.querySelector(
       "album-image-custom-element",
     );
-    if (coverArtUrl && albumImage) {
-      albumImage.setAttribute("data-cover-art-url", coverArtUrl);
+    const albumTitle = this.shadowRoot!.querySelector(".album-title");
+    const albumArtist = this.shadowRoot!.querySelector(".album-artist");
+    if (albumImage) {
+      albumImage.setAttribute("data-album-url", albumUrl);
+      if (coverArtUrl) {
+        albumImage.setAttribute("data-cover-art-url", coverArtUrl);
+      }
     }
+    if (albumTitle) albumTitle.textContent = albumId;
+    if (albumArtist) albumArtist.textContent = artistId;
 
     const applyGradient = (colors: string[] | null) => {
       if (!colors?.length) return;
