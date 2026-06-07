@@ -250,14 +250,24 @@ export class TracklistItemCustomElement extends HTMLElement {
       margin-left: 16px;
     }
       </style>
-        <span class="track-number">${this.trackNumber}</span>
+        <span class="track-number"></span>
         <div class="track-info">
-          <div class="track-name">${this.trackName}</div>
-          <div class="track-artist">${this.trackArtist}</div>
+          <div class="track-name"></div>
+          <div class="track-artist"></div>
         </div>
-        <span class="track-duration">${this.trackDuration || " "}</span>
+        <span class="track-duration"></span>
       </div>
     `;
+    const trackNumberElement = this.querySelector(".track-number");
+    const trackNameElement = this.querySelector(".track-name");
+    const trackArtistElement = this.querySelector(".track-artist");
+    const trackDurationElement = this.querySelector(".track-duration");
+    if (trackNumberElement) trackNumberElement.textContent = this.trackNumber;
+    if (trackNameElement) trackNameElement.textContent = this.trackName;
+    if (trackArtistElement) trackArtistElement.textContent = this.trackArtist;
+    if (trackDurationElement) {
+      trackDurationElement.textContent = this.trackDuration || " ";
+    }
   }
 
   /**
