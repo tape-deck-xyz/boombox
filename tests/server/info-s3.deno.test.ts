@@ -5,6 +5,7 @@ import {
   clearSendCalls,
   resetMockInfoJsonObject,
   sendCalls,
+  setSendBehavior,
 } from "./s3.server.test-mocks/s3-client.ts";
 import {
   ensureInfoJsonSeededAtStartup,
@@ -57,6 +58,48 @@ Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has i
 
   clearSendCalls();
   await ensureInfoJsonSeededAtStartup();
+
+  const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
+  assertEquals(putCount, 0);
+});
+
+Deno.test("ensureInfoJsonSeededAtStartup does not PUT when info.json HEAD fails with AccessDenied", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  resetMockInfoJsonObject();
+  clearSendCalls();
+
+  try {
+    await Deno.remove(INFO_CACHE_PATH);
+  } catch {
+    // ok
+  }
+  try {
+    await Deno.remove("cache/info-s3.etag");
+  } catch {
+    // ok
+  }
+
+  const { regenerateInfoCache } = await import("../../server/info.ts");
+  await regenerateInfoCache(new Request("http://seed.example/"));
+
+  clearSendCalls();
+  setSendBehavior((command) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "HeadObjectCommand") {
+      const err = new Error("AccessDenied");
+      (err as { name: string }).name = "AccessDenied";
+      return Promise.reject(err);
+    }
+    return Promise.resolve({});
+  });
+
+  try {
+    await ensureInfoJsonSeededAtStartup();
+  } finally {
+    setSendBehavior(null);
+  }
 
   const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
   assertEquals(putCount, 0);
