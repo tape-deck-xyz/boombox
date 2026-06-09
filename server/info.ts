@@ -304,10 +304,12 @@ export function withRequestHostname(
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   let exists = false;
   try {
-    const head = await headInfoJsonObjectFromS3();
-    exists = head != null;
-  } catch {
-    exists = false;
+    exists = await headInfoJsonObjectFromS3() != null;
+  } catch (e) {
+    logger.warn("Startup: could not verify whether S3 info.json exists", {
+      error: String(e),
+    });
+    return;
   }
   if (exists) return;
 
