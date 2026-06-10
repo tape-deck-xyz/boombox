@@ -931,6 +931,31 @@ Deno.test("TracklistItemCustomElement - should handle special characters in trac
   assertEquals(trackName.textContent, 'Song & Title with "quotes"');
 });
 
+Deno.test("TracklistItemCustomElement - should render track name markup as text", async () => {
+  setupDOMEnvironment();
+  await import("./tracklist-item-custom-element.ts");
+
+  const el = createTracklistItem({
+    "data-track-name": "<strong>Injected track</strong>",
+    "data-track-artist": "<em>Injected artist</em>",
+  });
+
+  const trackName = el.querySelector(".track-name");
+  const trackArtist = el.querySelector(".track-artist");
+  assertExists(trackName);
+  assertExists(trackArtist);
+  assert(
+    trackName.querySelector("strong") === null,
+    "track name must not parse markup from metadata",
+  );
+  assert(
+    trackArtist.querySelector("em") === null,
+    "track artist must not parse markup from metadata",
+  );
+  assertEquals(trackName.textContent, "<strong>Injected track</strong>");
+  assertEquals(trackArtist.textContent, "<em>Injected artist</em>");
+});
+
 Deno.test("TracklistItemCustomElement - should handle special characters in artist name", async () => {
   setupDOMEnvironment();
   await import("./tracklist-item-custom-element.ts");
