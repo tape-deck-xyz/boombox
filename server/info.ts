@@ -264,6 +264,21 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       }
     } catch {
       // use disk
+      const etag = await readStoredS3Etag();
+      return { payload: diskPayload, etagForHttp: etag ?? undefined };
+    }
+
+    logger.warn(
+      "info.json missing or invalid in S3; rebuilding from object listing",
+    );
+    try {
+      const payload = await regenerateInfoCache(req);
+      const etag = await readStoredS3Etag();
+      return { payload, etagForHttp: etag ?? undefined };
+    } catch (e) {
+      logger.warn("Could not rebuild info.json; using disk cache", {
+        error: String(e),
+      });
     }
     const etag = await readStoredS3Etag();
     return { payload: diskPayload, etagForHttp: etag ?? undefined };
@@ -299,7 +314,7 @@ export function withRequestHostname(
 }
 
 /**
- * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
+ * One-shot startup: ensure `info.json` exists in S3 when the bucket is missing it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   let exists = false;
@@ -310,19 +325,6 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
     exists = false;
   }
   if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
-    return;
-  }
 
   const req = new Request("http://localhost/");
   try {

@@ -4,7 +4,9 @@ import {
   INFO_CACHE_PATH,
   INFO_ETAG_CACHE_PATH,
   resolveInfoPayloadForGet,
+  writeInfoCache,
 } from "../../server/info.ts";
+import { INFO_DOCUMENT_SCHEMA_VERSION } from "../../server/info-document.ts";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
@@ -19,6 +21,19 @@ import {
 
 function cleanupTtlEnv(): void {
   Deno.env.delete("INFO_DISK_CACHE_TTL_TEST_MS");
+}
+
+async function removeInfoCacheFiles(): Promise<void> {
+  try {
+    await Deno.remove(INFO_CACHE_PATH);
+  } catch {
+    /* ok */
+  }
+  try {
+    await Deno.remove(INFO_ETAG_CACHE_PATH);
+  } catch {
+    /* ok */
+  }
 }
 
 Deno.test("resolveInfoPayloadForGet uses disk when TTL=0 and S3 ETag matches sidecar", async () => {
@@ -69,6 +84,36 @@ Deno.test(
       );
       assertEquals(typeof r.payload.contents, "object");
       assertEquals(r.etagForHttp === "wrong-etag-for-test", false);
+    } finally {
+      if (prevTtl === undefined) cleanupTtlEnv();
+      else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
+    }
+  },
+);
+
+Deno.test(
+  "resolveInfoPayloadForGet rebuilds expired disk cache when S3 info.json is missing",
+  async () => {
+    const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+    setupStorageEnv();
+    mockFilesWithAlbum();
+    resetMockInfoJsonObject();
+
+    try {
+      Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+      await removeInfoCacheFiles();
+      await writeInfoCache({
+        contents: {},
+        timestamp: 1,
+        hostname: "stale.example",
+        schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
+      });
+
+      const r = await resolveInfoPayloadForGet(
+        new Request("http://missing-s3-info.example/info"),
+      );
+
+      assertEquals(r.payload.contents["Test Artist"] !== undefined, true);
     } finally {
       if (prevTtl === undefined) cleanupTtlEnv();
       else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
