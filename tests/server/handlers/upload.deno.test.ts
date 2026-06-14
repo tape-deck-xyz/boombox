@@ -1,7 +1,16 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -176,4 +185,61 @@ Deno.test({
   },
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
   sanitizeOps: false,
+});
+
+Deno.test("handleUpload returns 500 when uploaded files cannot be persisted to info.json", async () => {
+  const originalUser = Deno.env.get("ADMIN_USER");
+  const originalPass = Deno.env.get("ADMIN_PASS");
+  const originalAccessKey = Deno.env.get("AWS_ACCESS_KEY_ID");
+  const originalSecretKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+  const originalRegion = Deno.env.get("STORAGE_REGION");
+  const originalBucket = Deno.env.get("STORAGE_BUCKET");
+  Deno.env.set("ADMIN_USER", ADMIN_USER);
+  Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+  setupStorageEnv();
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("catalog write failed"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const formData = new FormData();
+    formData.append(
+      "files",
+      new File(["test audio content"], "test.mp3", { type: "audio/mpeg" }),
+    );
+    const response = await handleUpload(
+      new Request("http://localhost:8000/", {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+    );
+
+    assertEquals(response.status, 500);
+    assertEquals(await response.text(), "Failed to update library catalog");
+  } finally {
+    setSendBehavior(null);
+    if (originalUser === undefined) Deno.env.delete("ADMIN_USER");
+    else Deno.env.set("ADMIN_USER", originalUser);
+    if (originalPass === undefined) Deno.env.delete("ADMIN_PASS");
+    else Deno.env.set("ADMIN_PASS", originalPass);
+    if (originalAccessKey === undefined) Deno.env.delete("AWS_ACCESS_KEY_ID");
+    else Deno.env.set("AWS_ACCESS_KEY_ID", originalAccessKey);
+    if (originalSecretKey === undefined) {
+      Deno.env.delete("AWS_SECRET_ACCESS_KEY");
+    } else {
+      Deno.env.set("AWS_SECRET_ACCESS_KEY", originalSecretKey);
+    }
+    if (originalRegion === undefined) Deno.env.delete("STORAGE_REGION");
+    else Deno.env.set("STORAGE_REGION", originalRegion);
+    if (originalBucket === undefined) Deno.env.delete("STORAGE_BUCKET");
+    else Deno.env.set("STORAGE_BUCKET", originalBucket);
+  }
 });

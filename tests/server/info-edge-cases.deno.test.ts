@@ -1,5 +1,5 @@
 /** @file Branch coverage for {@link ../../server/info.ts} error and edge paths. */
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
@@ -19,9 +19,20 @@ import {
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
 
-Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
+Deno.test("regenerateInfoCache preserves disk cache and ETag when S3 PutObject for info.json fails", async () => {
   setupStorageEnv();
   mockFilesWithAlbum();
+  await Deno.mkdir("cache", { recursive: true });
+  const previousPayload = {
+    contents: {},
+    timestamp: 1,
+    hostname: "previous.example",
+    schemaVersion: 1,
+  };
+  const previousDisk = JSON.stringify(previousPayload);
+  const previousEtag = "previous-etag";
+  await Deno.writeTextFile(INFO_CACHE_PATH, previousDisk);
+  await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, previousEtag);
 
   setSendBehavior((command: unknown) => {
     const key = (command as { input?: { Key?: string } }).input?.Key;
@@ -35,11 +46,13 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
 
   try {
     const { regenerateInfoCache } = await import("../../server/info.ts");
-    const payload = await regenerateInfoCache(
-      new Request("http://put-fail.example/"),
+    await assertRejects(
+      () => regenerateInfoCache(new Request("http://put-fail.example/")),
+      Error,
+      "mock S3 put failure",
     );
-    assertEquals(typeof payload.timestamp, "number");
-    assertEquals(typeof payload.contents, "object");
+    assertEquals(await Deno.readTextFile(INFO_CACHE_PATH), previousDisk);
+    assertEquals(await Deno.readTextFile(INFO_ETAG_CACHE_PATH), previousEtag);
   } finally {
     setSendBehavior(null);
   }
@@ -281,7 +294,7 @@ Deno.test("resolveInfoPayloadForGet upgrades schemaVersion 0 from S3 info.json",
 });
 
 Deno.test(
-  "ensureInfoJsonSeededAtStartup continues when uploading info.json from disk cache fails",
+  "ensureInfoJsonSeededAtStartup continues when rebuilt info.json cannot be written",
   async () => {
     setupStorageEnv();
     mockFilesWithAlbum();
