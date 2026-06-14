@@ -18,33 +18,29 @@ function isPutInfoJson(command: unknown): boolean {
   return key === "info.json";
 }
 
-Deno.test("ensureInfoJsonSeededAtStartup PUTs info.json from disk when S3 object is absent", async () => {
+Deno.test("ensureInfoJsonSeededAtStartup rebuilds info.json from listing when S3 object is absent", async () => {
   setupStorageEnv();
   mockFilesWithAlbum();
   resetMockInfoJsonObject();
   clearSendCalls();
 
-  try {
-    await Deno.remove(INFO_CACHE_PATH);
-  } catch {
-    // ok
-  }
-  try {
-    await Deno.remove("cache/info-s3.etag");
-  } catch {
-    // ok
-  }
-
-  const { regenerateInfoCache } = await import("../../server/info.ts");
-  await regenerateInfoCache(new Request("http://seed.example/"));
-
-  resetMockInfoJsonObject();
-  clearSendCalls();
+  await Deno.mkdir("cache", { recursive: true });
+  await Deno.writeTextFile(
+    INFO_CACHE_PATH,
+    JSON.stringify({
+      contents: {},
+      timestamp: 1,
+      hostname: "stale.example",
+      schemaVersion: 1,
+    }),
+  );
 
   await ensureInfoJsonSeededAtStartup();
 
   const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
   assertEquals(putCount >= 1, true);
+  const disk = await Deno.readTextFile(INFO_CACHE_PATH);
+  assertEquals(disk.includes("Test Artist"), true);
 });
 
 Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has info.json", async () => {

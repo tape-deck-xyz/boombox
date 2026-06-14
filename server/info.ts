@@ -219,13 +219,10 @@ export async function regenerateInfoCache(
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
+  const body = JSON.stringify(payload);
+  const etag = await putInfoJsonObjectToS3(body);
   await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
+  await writeStoredS3Etag(etag);
   return payload;
 }
 
@@ -310,19 +307,6 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
     exists = false;
   }
   if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
-    return;
-  }
 
   const req = new Request("http://localhost/");
   try {
