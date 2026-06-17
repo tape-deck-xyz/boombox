@@ -522,6 +522,7 @@ export function coverObjectKey(artist: string, album: string): string {
 
 /** File fetch cache to avoid repetitve fetches */
 let filesFetchCache: Promise<Files> | null = null;
+let filesFetchCacheToken: object | null = null;
 
 /** Get file list from S3 and organize it into a `Files` object */
 const fileFetch = async (): Promise<Files> => {
@@ -716,18 +717,20 @@ export const getUploadedFiles = (force?: boolean): Promise<Files> => {
       "Force refresh requested, clearing cache and fetching fresh data",
     );
     filesFetchCache = null;
+    filesFetchCacheToken = null;
   }
 
   if (!filesFetchCache) {
     logger.debug("Cache miss, fetching files from S3");
-    let pendingFetch: Promise<Files>;
-    pendingFetch = fileFetch().catch((error) => {
-      if (filesFetchCache === pendingFetch) {
+    const cacheToken = {};
+    filesFetchCacheToken = cacheToken;
+    filesFetchCache = fileFetch().catch((error) => {
+      if (filesFetchCacheToken === cacheToken) {
         filesFetchCache = null;
+        filesFetchCacheToken = null;
       }
       throw error;
     });
-    filesFetchCache = pendingFetch;
   } else {
     logger.debug("Using cached file list");
   }
