@@ -246,6 +246,59 @@ Deno.test(
 );
 
 Deno.test(
+  "resolveInfoPayloadForGet falls back to expired disk cache when S3 repair listing fails",
+  async () => {
+    const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+    setupStorageEnv();
+    setupAdminEnv();
+    mockFilesWithAlbum();
+    resetMockInfoJsonObject();
+    try {
+      Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+      await writeInfoCache({
+        contents: {
+          "Cached Artist": {
+            "Cached Album": {
+              id: "Cached Artist/Cached Album",
+              title: "Cached Album",
+              coverArtUrl: null,
+              tracks: [{
+                title: "Cached Track",
+                trackNum: 1,
+                lastModified: null,
+                url: "Cached%20Artist/Cached%20Album/1__Cached%20Track.mp3",
+              }],
+            },
+          },
+        },
+        timestamp: 1,
+        hostname: "cached.example",
+        schemaVersion: 1,
+      });
+
+      setSendBehavior((command: unknown) => {
+        const name = (command as { constructor: { name: string } }).constructor
+          ?.name;
+        if (name === "ListObjectsV2Command") {
+          return Promise.reject(new Error("repair listing unavailable"));
+        }
+        return defaultS3MockReply(command);
+      });
+
+      const r = await resolveInfoPayloadForGet(
+        new Request("http://repair-fail.example/info"),
+      );
+
+      assertEquals(r.payload.contents["Cached Artist"] != null, true);
+    } finally {
+      setSendBehavior(null);
+      if (prevTtl === undefined) cleanupTtlEnv();
+      else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
+    }
+  },
+);
+
+Deno.test(
   "ensureInfoJsonSeededAtStartup continues when catalog rebuild throws",
   async () => {
     setupStorageEnv();
