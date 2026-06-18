@@ -247,23 +247,42 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       return { payload: diskPayload, etagForHttp: etag ?? undefined };
     }
 
+    let shouldRebuildFromListing = false;
     try {
       const head = await headInfoJsonObjectFromS3();
       const stored = await readStoredS3Etag();
       if (head && stored && head.etag === stored) {
         return { payload: diskPayload, etagForHttp: stored };
       }
-      const got = await getInfoJsonObjectFromS3();
-      if (got) {
-        const parsed = parsePayloadFromS3Json(got.bodyText);
-        if (parsed) {
-          await writeInfoCache(parsed);
-          await writeStoredS3Etag(got.etag);
-          return { payload: parsed, etagForHttp: got.etag };
+      if (head) {
+        const got = await getInfoJsonObjectFromS3();
+        if (got) {
+          const parsed = parsePayloadFromS3Json(got.bodyText);
+          if (parsed) {
+            await writeInfoCache(parsed);
+            await writeStoredS3Etag(got.etag);
+            return { payload: parsed, etagForHttp: got.etag };
+          }
         }
       }
+      shouldRebuildFromListing = true;
     } catch {
       // use disk
+    }
+    if (shouldRebuildFromListing) {
+      logger.warn(
+        "info.json missing or invalid in S3; rebuilding from object listing",
+      );
+      try {
+        const payload = await regenerateInfoCache(req);
+        const etag = await readStoredS3Etag();
+        return { payload, etagForHttp: etag ?? undefined };
+      } catch (e) {
+        logger.warn(
+          "Could not rebuild info.json from object listing; using disk cache",
+          { error: String(e) },
+        );
+      }
     }
     const etag = await readStoredS3Etag();
     return { payload: diskPayload, etagForHttp: etag ?? undefined };
@@ -311,6 +330,16 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   }
   if (exists) return;
 
+  const req = new Request("http://localhost/");
+  try {
+    await regenerateInfoCache(req);
+    return;
+  } catch (e) {
+    logger.warn("Startup: could not generate initial info.json", {
+      error: String(e),
+    });
+  }
+
   const local = await readInfoCache();
   if (local) {
     try {
@@ -322,14 +351,5 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
       });
     }
     return;
-  }
-
-  const req = new Request("http://localhost/");
-  try {
-    await regenerateInfoCache(req);
-  } catch (e) {
-    logger.warn("Startup: could not generate initial info.json", {
-      error: String(e),
-    });
   }
 }
