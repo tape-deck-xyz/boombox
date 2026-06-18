@@ -112,9 +112,10 @@ flowchart LR
 - **HTTP caching**: `GET /info` responses should expose **`ETag`** (aligned with
   S3 where applicable) and **`Cache-Control`** appropriate for public vs private
   catalogs.
-- **Cold start**: If the S3 key is missing at startup, **one-time** seed: valid
-  local `cache/info.json` if present, else rebuild from listing, then upload to
-  S3 (with warnings when inferring from listing).
+- **Cold start**: If the S3 key is missing at startup, **one-time** seed by
+  rebuilding from the bucket listing, then upload to S3. The local
+  `cache/info.json` is only a last-resort fallback if listing-based repair is
+  unavailable.
 
 ## Bucket layout note (`artists/` prefix)
 

@@ -9,6 +9,8 @@ import {
 import {
   ensureInfoJsonSeededAtStartup,
   INFO_CACHE_PATH,
+  regenerateInfoCache,
+  writeInfoCache,
 } from "../../server/info.ts";
 
 function isPutInfoJson(command: unknown): boolean {
@@ -18,7 +20,7 @@ function isPutInfoJson(command: unknown): boolean {
   return key === "info.json";
 }
 
-Deno.test("ensureInfoJsonSeededAtStartup PUTs info.json from disk when S3 object is absent", async () => {
+Deno.test("ensureInfoJsonSeededAtStartup rebuilds info.json from listing when S3 object is absent", async () => {
   setupStorageEnv();
   mockFilesWithAlbum();
   resetMockInfoJsonObject();
@@ -35,16 +37,41 @@ Deno.test("ensureInfoJsonSeededAtStartup PUTs info.json from disk when S3 object
     // ok
   }
 
-  const { regenerateInfoCache } = await import("../../server/info.ts");
-  await regenerateInfoCache(new Request("http://seed.example/"));
+  await writeInfoCache({
+    contents: {
+      "Stale Artist": {
+        "Stale Album": {
+          id: "Stale Artist/Stale Album",
+          title: "Stale Album",
+          coverArtUrl: null,
+          tracks: [{
+            title: "Missing Track",
+            trackNum: 1,
+            lastModified: null,
+            url: "Stale%20Artist/Stale%20Album/1__Missing%20Track.mp3",
+          }],
+        },
+      },
+    },
+    timestamp: 1,
+    hostname: "stale.example",
+    schemaVersion: 1,
+  });
 
   resetMockInfoJsonObject();
   clearSendCalls();
 
   await ensureInfoJsonSeededAtStartup();
 
-  const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
-  assertEquals(putCount >= 1, true);
+  const putInfoCalls = sendCalls.filter((c) => isPutInfoJson(c.command));
+  assertEquals(putInfoCalls.length >= 1, true);
+  const body = (putInfoCalls.at(-1)!.command as {
+    input?: { Body?: Uint8Array | string };
+  }).input?.Body;
+  const text = typeof body === "string" ? body : new TextDecoder().decode(body);
+  const payload = JSON.parse(text);
+  assertEquals(payload.contents["Test Artist"] != null, true);
+  assertEquals(payload.contents["Stale Artist"], undefined);
 });
 
 Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has info.json", async () => {
@@ -52,7 +79,6 @@ Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has i
   mockFilesWithAlbum();
   clearSendCalls();
 
-  const { regenerateInfoCache } = await import("../../server/info.ts");
   await regenerateInfoCache(new Request("http://warm.example/"));
 
   clearSendCalls();

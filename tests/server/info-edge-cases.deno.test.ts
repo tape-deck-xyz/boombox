@@ -17,6 +17,7 @@ import {
   INFO_ETAG_CACHE_PATH,
   readInfoCache,
   resolveInfoPayloadForGet,
+  writeInfoCache,
 } from "../../server/info.ts";
 
 Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
@@ -196,6 +197,55 @@ Deno.test(
 );
 
 Deno.test(
+  "resolveInfoPayloadForGet rebuilds from listing when expired disk cache has no S3 info.json",
+  async () => {
+    const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+    setupStorageEnv();
+    setupAdminEnv();
+    mockFilesWithAlbum();
+    resetMockInfoJsonObject();
+    try {
+      Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+      await writeInfoCache({
+        contents: {
+          "Stale Artist": {
+            "Stale Album": {
+              id: "Stale Artist/Stale Album",
+              title: "Stale Album",
+              coverArtUrl: null,
+              tracks: [{
+                title: "Missing Track",
+                trackNum: 1,
+                lastModified: null,
+                url: "Stale%20Artist/Stale%20Album/1__Missing%20Track.mp3",
+              }],
+            },
+          },
+        },
+        timestamp: 1,
+        hostname: "stale.example",
+        schemaVersion: 1,
+      });
+      try {
+        await Deno.remove(INFO_ETAG_CACHE_PATH);
+      } catch {
+        /* ok */
+      }
+
+      const r = await resolveInfoPayloadForGet(
+        new Request("http://repair.example/info"),
+      );
+
+      assertEquals(r.payload.contents["Test Artist"] != null, true);
+      assertEquals(r.payload.contents["Stale Artist"], undefined);
+    } finally {
+      if (prevTtl === undefined) cleanupTtlEnv();
+      else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
+    }
+  },
+);
+
+Deno.test(
   "ensureInfoJsonSeededAtStartup continues when catalog rebuild throws",
   async () => {
     setupStorageEnv();
@@ -286,14 +336,34 @@ Deno.test(
     setupStorageEnv();
     mockFilesWithAlbum();
     resetMockInfoJsonObject();
-    const { regenerateInfoCache } = await import("../../server/info.ts");
-    await regenerateInfoCache(new Request("http://seed-upfail.example/"));
-    resetMockInfoJsonObject();
+    await writeInfoCache({
+      contents: {
+        "Cached Artist": {
+          "Cached Album": {
+            id: "Cached Artist/Cached Album",
+            title: "Cached Album",
+            coverArtUrl: null,
+            tracks: [{
+              title: "Cached Track",
+              trackNum: 1,
+              lastModified: null,
+              url: "Cached%20Artist/Cached%20Album/1__Cached%20Track.mp3",
+            }],
+          },
+        },
+      },
+      timestamp: 1,
+      hostname: "cached.example",
+      schemaVersion: 1,
+    });
 
     setSendBehavior((command: unknown) => {
       const key = (command as { input?: { Key?: string } }).input?.Key;
       const name = (command as { constructor: { name: string } }).constructor
         ?.name;
+      if (name === "ListObjectsV2Command") {
+        return Promise.reject(new Error("startup listing blocked"));
+      }
       if (name === "PutObjectCommand" && key === "info.json") {
         return Promise.reject(new Error("startup put blocked"));
       }
