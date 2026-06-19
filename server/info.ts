@@ -165,6 +165,14 @@ async function writeStoredS3Etag(etag: string): Promise<void> {
   await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, etag);
 }
 
+async function clearStoredS3Etag(): Promise<void> {
+  try {
+    await Deno.remove(INFO_ETAG_CACHE_PATH);
+  } catch {
+    // Missing sidecar is already the desired state.
+  }
+}
+
 async function getDiskCacheMtimeMs(): Promise<number | null> {
   try {
     const s = await Deno.stat(INFO_CACHE_PATH);
@@ -200,6 +208,8 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
   }
 }
 
+let regenerateInfoCacheQueue: Promise<void> = Promise.resolve();
+
 /**
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
@@ -208,6 +218,21 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * @returns The generated document
  */
 export async function regenerateInfoCache(
+  req: Request,
+  files?: Files,
+): Promise<InfoPayload> {
+  const run = regenerateInfoCacheQueue.then(
+    () => regenerateInfoCacheNow(req, files),
+    () => regenerateInfoCacheNow(req, files),
+  );
+  regenerateInfoCacheQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return await run;
+}
+
+async function regenerateInfoCacheNow(
   req: Request,
   files?: Files,
 ): Promise<InfoPayload> {
@@ -224,6 +249,7 @@ export async function regenerateInfoCache(
     const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
     await writeStoredS3Etag(etag);
   } catch (e) {
+    await clearStoredS3Etag();
     logger.warn("Could not persist info.json to S3", { error: String(e) });
   }
   return payload;
@@ -257,6 +283,9 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       if (got) {
         const parsed = parsePayloadFromS3Json(got.bodyText);
         if (parsed) {
+          if (parsed.timestamp <= diskPayload.timestamp) {
+            return { payload: diskPayload, etagForHttp: undefined };
+          }
           await writeInfoCache(parsed);
           await writeStoredS3Etag(got.etag);
           return { payload: parsed, etagForHttp: got.etag };
@@ -300,27 +329,18 @@ export function withRequestHostname(
 
 /**
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
+ *
+ * Rebuild from the object listing instead of uploading disk cache: disk may be
+ * stale after another instance or a previous process updated the bucket.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
   try {
     const head = await headInfoJsonObjectFromS3();
-    exists = head != null;
-  } catch {
-    exists = false;
-  }
-  if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
+    if (head) return;
+  } catch (e) {
+    logger.warn("Startup: could not check for info.json in S3", {
+      error: String(e),
+    });
     return;
   }
 
