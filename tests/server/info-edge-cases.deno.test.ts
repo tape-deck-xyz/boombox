@@ -16,6 +16,7 @@ import {
   INFO_CACHE_PATH,
   INFO_ETAG_CACHE_PATH,
   readInfoCache,
+  regenerateInfoCache,
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
 
@@ -34,7 +35,6 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
   });
 
   try {
-    const { regenerateInfoCache } = await import("../../server/info.ts");
     const payload = await regenerateInfoCache(
       new Request("http://put-fail.example/"),
     );
@@ -44,6 +44,80 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
     setSendBehavior(null);
   }
 });
+
+Deno.test(
+  "resolveInfoPayloadForGet keeps fresher disk payload when S3 still has older info.json",
+  async () => {
+    const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+    setupStorageEnv();
+    resetMockInfoJsonObject();
+
+    try {
+      Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+      setSendBehavior((command: unknown) => {
+        const name = (command as { constructor: { name: string } }).constructor
+          ?.name;
+        if (name === "ListObjectsV2Command") {
+          return Promise.resolve({
+            Contents: [
+              {
+                Key: "Old%20Artist/Old%20Album/1__Old%20Track.mp3",
+                LastModified: new Date(),
+              },
+            ],
+            IsTruncated: false,
+          });
+        }
+        return defaultS3MockReply(command);
+      });
+      await regenerateInfoCache(new Request("http://older-s3.example/info"));
+
+      setSendBehavior((command: unknown) => {
+        const key = (command as { input?: { Key?: string } }).input?.Key;
+        const name = (command as { constructor: { name: string } }).constructor
+          ?.name;
+        if (name === "ListObjectsV2Command") {
+          return Promise.resolve({
+            Contents: [
+              {
+                Key: "Old%20Artist/Old%20Album/1__Old%20Track.mp3",
+                LastModified: new Date(),
+              },
+              {
+                Key: "New%20Artist/New%20Album/1__New%20Track.mp3",
+                LastModified: new Date(),
+              },
+            ],
+            IsTruncated: false,
+          });
+        }
+        if (name === "PutObjectCommand" && key === "info.json") {
+          return Promise.reject(new Error("mock S3 put failure"));
+        }
+        return defaultS3MockReply(command);
+      });
+      await regenerateInfoCache(new Request("http://fresh-disk.example/info"));
+      try {
+        await Deno.remove(INFO_ETAG_CACHE_PATH);
+      } catch {
+        /* ok */
+      }
+
+      const resolved = await resolveInfoPayloadForGet(
+        new Request("http://fresh-disk.example/info"),
+      );
+
+      assertEquals(Object.keys(resolved.payload.contents).sort(), [
+        "New Artist",
+        "Old Artist",
+      ]);
+    } finally {
+      setSendBehavior(null);
+      if (prevTtl === undefined) cleanupTtlEnv();
+      else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
+    }
+  },
+);
 
 function cleanupTtlEnv(): void {
   Deno.env.delete("INFO_DISK_CACHE_TTL_TEST_MS");
@@ -281,12 +355,11 @@ Deno.test("resolveInfoPayloadForGet upgrades schemaVersion 0 from S3 info.json",
 });
 
 Deno.test(
-  "ensureInfoJsonSeededAtStartup continues when uploading info.json from disk cache fails",
+  "ensureInfoJsonSeededAtStartup continues when startup catalog rebuild PUT fails",
   async () => {
     setupStorageEnv();
     mockFilesWithAlbum();
     resetMockInfoJsonObject();
-    const { regenerateInfoCache } = await import("../../server/info.ts");
     await regenerateInfoCache(new Request("http://seed-upfail.example/"));
     resetMockInfoJsonObject();
 
