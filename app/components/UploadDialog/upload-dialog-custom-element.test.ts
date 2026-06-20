@@ -109,6 +109,20 @@ function setFileInputFiles(
   );
 }
 
+async function waitForAssertion(assertion: () => void): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  throw lastError;
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -562,20 +576,20 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
-    assertEquals(
-      errorEl.textContent,
-      "Upload failed for all files: S3 connection error",
-      "error message from server should be shown",
-    );
-    assert(
-      !errorEl.hidden,
-      "error element should be visible when error occurs",
-    );
+    await waitForAssertion(() => {
+      assertEquals(
+        errorEl.textContent,
+        "Upload failed for all files: S3 connection error",
+        "error message from server should be shown",
+      );
+      assert(
+        !errorEl.hidden,
+        "error element should be visible when error occurs",
+      );
+    });
   },
 );
 
@@ -603,17 +617,17 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
-    assertEquals(
-      errorEl.textContent,
-      "Failed to fetch",
-      "error message from thrown Error should be shown",
-    );
-    assert(!errorEl.hidden);
+    await waitForAssertion(() => {
+      assertEquals(
+        errorEl.textContent,
+        "Failed to fetch",
+        "error message from thrown Error should be shown",
+      );
+      assert(!errorEl.hidden);
+    });
   },
 );
 
@@ -642,12 +656,12 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     let errorEl = dialog.querySelector("#upload-error") as HTMLElement;
-    assertEquals(errorEl.textContent, "Server error");
-    assert(!errorEl.hidden);
+    await waitForAssertion(() => {
+      assertEquals(errorEl.textContent, "Server error");
+      assert(!errorEl.hidden);
+    });
 
     const newFile = new File(["y"], "song2.mp3", { type: "audio/mpeg" });
     Object.defineProperty(newFile, "size", { value: 2048 });
@@ -693,10 +707,10 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
-    assertExists(capturedBody);
+    await waitForAssertion(() => {
+      assertExists(capturedBody);
+    });
     const body = capturedBody as FormData;
     assertEquals(
       body.getAll("files").length,
