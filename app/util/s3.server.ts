@@ -520,7 +520,7 @@ export function coverObjectKey(artist: string, album: string): string {
   return `${artist}/${album}/cover.jpeg`;
 }
 
-/** File fetch cache to avoid repetitve fetches */
+/** File fetch cache to avoid repetitive fetches */
 let filesFetchCache: Promise<Files> | null = null;
 
 /** Get file list from S3 and organize it into a `Files` object */
@@ -706,6 +706,16 @@ const fileFetch = async (): Promise<Files> => {
   }
 };
 
+const fetchFilesWithRejectedCacheEviction = (): Promise<Files> => {
+  const nextFetch = fileFetch().catch((error) => {
+    if (filesFetchCache === nextFetch) {
+      filesFetchCache = null;
+    }
+    throw error;
+  });
+  return nextFetch;
+};
+
 /**
  * Get Files object
  * @param force Optionally force a fresh data pull. Otherwise data will be pulled from cache if available.
@@ -720,7 +730,7 @@ export const getUploadedFiles = (force?: boolean): Promise<Files> => {
 
   if (!filesFetchCache) {
     logger.debug("Cache miss, fetching files from S3");
-    filesFetchCache = fileFetch();
+    filesFetchCache = fetchFilesWithRejectedCacheEviction();
   } else {
     logger.debug("Using cached file list");
   }
