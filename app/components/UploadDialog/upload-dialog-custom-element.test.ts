@@ -109,6 +109,15 @@ function setFileInputFiles(
   );
 }
 
+async function waitForSelectedFileMetadata(dialog: Element): Promise<void> {
+  const fileItem = dialog.querySelector("upload-dialog-file-item") as
+    | ({ metadataReady: Promise<void> } & Element)
+    | null;
+  assertExists(fileItem);
+  await fileItem.metadataReady;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -558,6 +567,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +609,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +649,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +701,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
