@@ -39,6 +39,15 @@ function commandKey(command: unknown): string | undefined {
   return (command as { input?: { Key?: string } }).input?.Key;
 }
 
+function createPreconditionFailedError(): Error {
+  const error = new Error("PreconditionFailed");
+  (error as { name: string }).name = "PreconditionFailed";
+  (error as { $metadata: { httpStatusCode: number } }).$metadata = {
+    httpStatusCode: 412,
+  };
+  return error;
+}
+
 /** Reset mock state so S3 has no `info.json` object. */
 export function resetMockInfoJsonObject(): void {
   mockInfoJsonStore.body = "";
@@ -51,7 +60,22 @@ function mockInfoJsonCommand(command: unknown): Promise<unknown> | null {
   if (key !== INFO_JSON_KEY) return null;
 
   if (name === "PutObjectCommand") {
-    const input = (command as { input?: { Body?: Uint8Array | string } }).input;
+    const input = (command as {
+      input?: {
+        Body?: Uint8Array | string;
+        IfMatch?: string;
+        IfNoneMatch?: string;
+      };
+    }).input;
+    if (input?.IfNoneMatch === "*" && mockInfoJsonStore.body) {
+      return Promise.reject(createPreconditionFailedError());
+    }
+    if (
+      input?.IfMatch &&
+      input.IfMatch.replaceAll('"', "") !== mockInfoJsonStore.etag
+    ) {
+      return Promise.reject(createPreconditionFailedError());
+    }
     const body = input?.Body;
     const text = typeof body === "string"
       ? body

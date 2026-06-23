@@ -27,6 +27,9 @@ export const INFO_ETAG_CACHE_PATH = "cache/info-s3.etag";
 /** Disk cache considered fresh without a blocking S3 HEAD (see docs). */
 export const INFO_DISK_CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** Bounded retries for conditional S3 catalog writes under concurrent refreshes. */
+const INFO_JSON_PERSIST_ATTEMPTS = 3;
+
 /** Non-production hook for tests: integer milliseconds; unset uses {@link INFO_DISK_CACHE_TTL_MS}. */
 function getEffectiveDiskCacheTtlMs(): number {
   const raw = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
@@ -200,6 +203,29 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
   }
 }
 
+function isS3ConditionalWriteConflict(error: unknown): boolean {
+  const e = error as {
+    $metadata?: { httpStatusCode?: number };
+    name?: string;
+  };
+  return e.$metadata?.httpStatusCode === 409 ||
+    e.$metadata?.httpStatusCode === 412 ||
+    e.name === "ConditionalRequestConflict" ||
+    e.name === "PreconditionFailed";
+}
+
+async function readCanonicalInfoPayloadFromS3(): Promise<
+  { payload: InfoPayload; etag: string } | null
+> {
+  const got = await getInfoJsonObjectFromS3().catch(() => null);
+  if (!got) return null;
+  const parsed = parsePayloadFromS3Json(got.bodyText);
+  if (!parsed) return null;
+  await writeInfoCache(parsed);
+  await writeStoredS3Etag(got.etag);
+  return { payload: parsed, etag: got.etag };
+}
+
 /**
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
@@ -212,21 +238,69 @@ export async function regenerateInfoCache(
   files?: Files,
 ): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
+  let lastPayload: InfoPayload | null = null;
+
+  for (let attempt = 0; attempt < INFO_JSON_PERSIST_ATTEMPTS; attempt++) {
+    let head: Awaited<ReturnType<typeof headInfoJsonObjectFromS3>>;
+    try {
+      head = await headInfoJsonObjectFromS3();
+    } catch (e) {
+      const contents = attempt === 0 && files ? files : await getUploadedFiles(
+        true,
+      );
+      const payload: InfoPayload = {
+        contents,
+        timestamp: Date.now(),
+        hostname,
+        schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
+      };
+      await writeInfoCache(payload);
+      logger.warn("Could not check info.json ETag before S3 persist", {
+        error: String(e),
+      });
+      return payload;
+    }
+
+    const contents = attempt === 0 && files ? files : await getUploadedFiles(
+      true,
+    );
+    const payload: InfoPayload = {
+      contents,
+      timestamp: Date.now(),
+      hostname,
+      schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
+    };
+    lastPayload = payload;
+    await writeInfoCache(payload);
+
+    try {
+      const etag = await putInfoJsonObjectToS3(
+        JSON.stringify(payload),
+        head ? { ifMatch: head.etag } : { ifNoneMatch: "*" },
+      );
+      await writeStoredS3Etag(etag);
+      return payload;
+    } catch (e) {
+      if (isS3ConditionalWriteConflict(e)) {
+        continue;
+      }
+      logger.warn("Could not persist info.json to S3", { error: String(e) });
+      return payload;
+    }
+  }
+
+  const canonical = await readCanonicalInfoPayloadFromS3();
+  if (canonical) return canonical.payload;
+
+  logger.warn("Could not persist info.json to S3 after concurrent updates");
+  if (lastPayload) return lastPayload;
   const contents = files ?? await getUploadedFiles(true);
-  const payload: InfoPayload = {
+  return {
     contents,
     timestamp: Date.now(),
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
-  await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
-  return payload;
 }
 
 /**
@@ -310,19 +384,6 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
     exists = false;
   }
   if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
-    return;
-  }
 
   const req = new Request("http://localhost/");
   try {
