@@ -137,3 +137,55 @@ Deno.test("regenerateInfoCache retries from a fresh listing after S3 write confl
     setSendBehavior(null);
   }
 });
+
+Deno.test("regenerateInfoCache returns canonical S3 catalog after repeated write conflicts", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  resetMockInfoJsonObject();
+  clearSendCalls();
+
+  await regenerateInfoCache(new Request("http://canonical.example/"));
+  clearSendCalls();
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+
+    if (name === "HeadObjectCommand" && key === "info.json") {
+      return Promise.resolve({
+        ETag: '"stale-etag"',
+        LastModified: new Date(),
+      });
+    }
+
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Old%20Artist/Old%20Album/1__Old%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const payload = await regenerateInfoCache(
+      new Request("http://canonical.example/"),
+    );
+
+    const body = JSON.stringify(payload.contents);
+    assertEquals(body.includes("Old%20Artist"), false);
+    assertStringIncludes(body, "Test%20Artist");
+
+    const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
+    assertEquals(putCount, 3);
+  } finally {
+    setSendBehavior(null);
+  }
+});
