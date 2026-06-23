@@ -231,3 +231,51 @@ Deno.test("regenerateInfoCache skips S3 persist when write precondition HEAD fai
     setSendBehavior(null);
   }
 });
+
+Deno.test("regenerateInfoCache preserves canonical S3 catalog when missing-object write loses race", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  resetMockInfoJsonObject();
+  clearSendCalls();
+
+  await regenerateInfoCache(new Request("http://race.example/"));
+  clearSendCalls();
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+
+    if (name === "HeadObjectCommand" && key === "info.json") {
+      const error = new Error("NotFound") as Error & { name: string };
+      error.name = "NotFound";
+      return Promise.reject(error);
+    }
+
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Older%20Artist/Older%20Album/1__Older%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const payload = await regenerateInfoCache(
+      new Request("http://race.example/"),
+    );
+
+    const body = JSON.stringify(payload.contents);
+    assertEquals(body.includes("Older%20Artist"), false);
+    assertStringIncludes(body, "Test%20Artist");
+  } finally {
+    setSendBehavior(null);
+  }
+});
