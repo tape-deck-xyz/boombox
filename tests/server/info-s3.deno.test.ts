@@ -189,3 +189,45 @@ Deno.test("regenerateInfoCache returns canonical S3 catalog after repeated write
     setSendBehavior(null);
   }
 });
+
+Deno.test("regenerateInfoCache skips S3 persist when write precondition HEAD fails", async () => {
+  setupStorageEnv();
+  clearSendCalls();
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+
+    if (name === "HeadObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("HEAD unavailable"));
+    }
+
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Safe%20Artist/Safe%20Album/1__Safe%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const payload = await regenerateInfoCache(
+      new Request("http://head-fail.example/"),
+    );
+
+    assertStringIncludes(JSON.stringify(payload.contents), "Safe%20Artist");
+
+    const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
+    assertEquals(putCount, 0);
+  } finally {
+    setSendBehavior(null);
+  }
+});
