@@ -801,13 +801,24 @@ export async function headInfoJsonObjectFromS3(): Promise<
   }
 }
 
+export interface PutInfoJsonObjectToS3Options {
+  /** Upload only if the current object ETag matches this value. */
+  ifMatch?: string;
+  /** Upload only if no current object exists. */
+  ifNoneMatch?: "*";
+}
+
 /**
  * Upload validated JSON for `info.json`. Object remains private (bucket default / IAM).
  *
  * @param bodyText - Full serialized info document JSON (see `server/info.ts`)
+ * @param options - Optional S3 conditional write headers
  * @returns Normalized ETag from the PutObject response
  */
-export async function putInfoJsonObjectToS3(bodyText: string): Promise<string> {
+export async function putInfoJsonObjectToS3(
+  bodyText: string,
+  options: PutInfoJsonObjectToS3Options = {},
+): Promise<string> {
   const config = validateConfig();
   const client = new S3Client({
     region: config.STORAGE_REGION,
@@ -819,6 +830,8 @@ export async function putInfoJsonObjectToS3(bodyText: string): Promise<string> {
       Key: INFO_JSON_S3_KEY,
       Body: new TextEncoder().encode(bodyText),
       ContentType: "application/json",
+      IfMatch: options.ifMatch,
+      IfNoneMatch: options.ifNoneMatch,
     }),
   );
   const raw = response.ETag ?? "";
