@@ -293,14 +293,7 @@ export async function regenerateInfoCache(
   if (canonical) return canonical.payload;
 
   logger.warn("Could not persist info.json to S3 after concurrent updates");
-  if (lastPayload) return lastPayload;
-  const contents = files ?? await getUploadedFiles(true);
-  return {
-    contents,
-    timestamp: Date.now(),
-    hostname,
-    schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
-  };
+  return lastPayload!;
 }
 
 /**
