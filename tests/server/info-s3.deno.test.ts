@@ -106,9 +106,12 @@ Deno.test("regenerateInfoCache retries from a fresh listing after S3 write confl
     if (name === "PutObjectCommand" && key === "info.json") {
       putCount++;
       if (putCount === 1) {
-        const error = new Error("precondition failed");
-        (error as { name: string }).name = "PreconditionFailed";
-        (error as { $metadata: { httpStatusCode: number } }).$metadata = {
+        const error = new Error("precondition failed") as Error & {
+          name: string;
+          $metadata: { httpStatusCode: number };
+        };
+        error.name = "PreconditionFailed";
+        error.$metadata = {
           httpStatusCode: 412,
         };
         return Promise.reject(error);

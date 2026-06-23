@@ -40,9 +40,12 @@ function commandKey(command: unknown): string | undefined {
 }
 
 function createPreconditionFailedError(): Error {
-  const error = new Error("PreconditionFailed");
-  (error as { name: string }).name = "PreconditionFailed";
-  (error as { $metadata: { httpStatusCode: number } }).$metadata = {
+  const error = new Error("PreconditionFailed") as Error & {
+    name: string;
+    $metadata: { httpStatusCode: number };
+  };
+  error.name = "PreconditionFailed";
+  error.$metadata = {
     httpStatusCode: 412,
   };
   return error;
