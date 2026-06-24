@@ -165,6 +165,14 @@ async function writeStoredS3Etag(etag: string): Promise<void> {
   await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, etag);
 }
 
+async function clearStoredS3Etag(): Promise<void> {
+  try {
+    await Deno.remove(INFO_ETAG_CACHE_PATH);
+  } catch {
+    // Missing sidecar is already the desired state.
+  }
+}
+
 async function getDiskCacheMtimeMs(): Promise<number | null> {
   try {
     const s = await Deno.stat(INFO_CACHE_PATH);
@@ -200,6 +208,21 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
   }
 }
 
+async function publishInfoPayloadToS3(
+  payload: InfoPayload,
+  failureMessage: string,
+): Promise<string | null> {
+  try {
+    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
+    await writeStoredS3Etag(etag);
+    return etag;
+  } catch (e) {
+    await clearStoredS3Etag();
+    logger.warn(failureMessage, { error: String(e) });
+    return null;
+  }
+}
+
 /**
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
@@ -220,12 +243,7 @@ export async function regenerateInfoCache(
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
   await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
+  await publishInfoPayloadToS3(payload, "Could not persist info.json to S3");
   return payload;
 }
 
@@ -257,6 +275,20 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       if (got) {
         const parsed = parsePayloadFromS3Json(got.bodyText);
         if (parsed) {
+          if (parsed.timestamp < diskPayload.timestamp) {
+            logger.warn(
+              "S3 info.json is older than disk cache; preserving disk catalog",
+              {
+                s3Timestamp: parsed.timestamp,
+                diskTimestamp: diskPayload.timestamp,
+              },
+            );
+            const etag = await publishInfoPayloadToS3(
+              diskPayload,
+              "Could not republish newer disk info.json to S3",
+            );
+            return { payload: diskPayload, etagForHttp: etag ?? undefined };
+          }
           await writeInfoCache(parsed);
           await writeStoredS3Etag(got.etag);
           return { payload: parsed, etagForHttp: got.etag };
@@ -310,19 +342,6 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
     exists = false;
   }
   if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
-    return;
-  }
 
   const req = new Request("http://localhost/");
   try {

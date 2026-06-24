@@ -109,6 +109,32 @@ function setFileInputFiles(
   );
 }
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitForSelectedFileMetadata(
+  dialog: HTMLDialogElement,
+): Promise<void> {
+  const fileItems = Array.from(
+    dialog.querySelectorAll("upload-dialog-file-item"),
+  ) as unknown as { metadataReady: Promise<void> }[];
+  await Promise.all(fileItems.map((item) => item.metadataReady));
+  await flushAsyncWork();
+}
+
+async function waitForCondition(
+  predicate: () => boolean,
+  message: string,
+): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    if (predicate()) return;
+    await flushAsyncWork();
+  }
+  assert(predicate(), message);
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -425,7 +451,7 @@ Deno.test(
       metadataReady: Promise<void>;
     };
     await remainingItem.metadataReady;
-    await new Promise((r) => setTimeout(r, 0));
+    await flushAsyncWork();
     assert(
       !submitBtn.disabled,
       "submit should stay enabled with one file remaining",
@@ -463,7 +489,7 @@ Deno.test(
       "upload-dialog-file-item",
     ) as unknown as { metadataReady: Promise<void> };
     await fileItem.metadataReady;
-    await new Promise((r) => setTimeout(r, 0));
+    await flushAsyncWork();
     assert(
       !submitBtn.disabled,
       "submit should be enabled after metadata loads",
@@ -558,15 +584,20 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitForCondition(
+      () =>
+        errorEl.textContent ===
+          "Upload failed for all files: S3 connection error",
+      "server error message should be rendered",
+    );
     assertEquals(
       errorEl.textContent,
       "Upload failed for all files: S3 connection error",
@@ -599,15 +630,18 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitForCondition(
+      () => errorEl.textContent === "Failed to fetch",
+      "network error message should be rendered",
+    );
     assertEquals(
       errorEl.textContent,
       "Failed to fetch",
@@ -638,14 +672,17 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     let errorEl = dialog.querySelector("#upload-error") as HTMLElement;
+    await waitForCondition(
+      () => errorEl.textContent === "Server error",
+      "server error message should be rendered before selecting new files",
+    );
     assertEquals(errorEl.textContent, "Server error");
     assert(!errorEl.hidden);
 
@@ -689,12 +726,15 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
+    await waitForCondition(
+      () => capturedBody !== null,
+      "fetch should receive form data",
+    );
 
     assertExists(capturedBody);
     const body = capturedBody as FormData;
