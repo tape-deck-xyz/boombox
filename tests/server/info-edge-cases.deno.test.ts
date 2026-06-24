@@ -281,7 +281,7 @@ Deno.test("resolveInfoPayloadForGet upgrades schemaVersion 0 from S3 info.json",
 });
 
 Deno.test(
-  "ensureInfoJsonSeededAtStartup continues when uploading info.json from disk cache fails",
+  "ensureInfoJsonSeededAtStartup continues when publishing rebuilt info.json fails",
   async () => {
     setupStorageEnv();
     mockFilesWithAlbum();
