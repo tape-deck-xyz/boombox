@@ -1,7 +1,18 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  clearSendCalls as clearS3SendCalls,
+  defaultS3MockReply,
+  sendCalls,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -176,4 +187,49 @@ Deno.test({
   },
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
   sanitizeOps: false,
+});
+
+Deno.test("handleUpload does not overwrite info.json when post-upload listing is empty", async () => {
+  setupStorageEnv();
+  Deno.env.set("ADMIN_USER", ADMIN_USER);
+  Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+  clearS3SendCalls();
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({ Contents: null, IsTruncated: false });
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const formData = new FormData();
+    formData.append(
+      "files",
+      new File(["content"], "test.mp3", { type: "audio/mpeg" }),
+    );
+
+    const response = await handleUpload(
+      new Request("http://localhost:8000/", {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+    );
+
+    const infoJsonWrites = sendCalls.filter((call) => {
+      const command = call.command as {
+        constructor: { name: string };
+        input?: { Key?: string };
+      };
+      return command.constructor?.name === "PutObjectCommand" &&
+        command.input?.Key === "info.json";
+    });
+
+    assertEquals(response.status, 303);
+    assertEquals(infoJsonWrites.length, 0);
+  } finally {
+    setSendBehavior(null);
+  }
 });

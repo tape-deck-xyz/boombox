@@ -107,7 +107,10 @@ Deno.test("resolveInfoPayloadForGet keeps newer disk catalog when S3 still has s
         return Promise.reject(new Error("mock stale S3 write failure"));
       }
       if (name === "HeadObjectCommand") {
-        return Promise.resolve({ ETag: '"old-etag"', LastModified: new Date() });
+        return Promise.resolve({
+          ETag: '"old-etag"',
+          LastModified: new Date(),
+        });
       }
       if (name === "GetObjectCommand") {
         return Promise.resolve({
