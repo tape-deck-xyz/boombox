@@ -257,6 +257,9 @@ export async function resolveInfoPayloadForGet(req: Request): Promise<{
       if (got) {
         const parsed = parsePayloadFromS3Json(got.bodyText);
         if (parsed) {
+          if (parsed.timestamp < diskPayload.timestamp) {
+            return { payload: diskPayload, etagForHttp: stored ?? undefined };
+          }
           await writeInfoCache(parsed);
           await writeStoredS3Etag(got.etag);
           return { payload: parsed, etagForHttp: got.etag };
