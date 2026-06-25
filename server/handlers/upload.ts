@@ -6,6 +6,7 @@
  * receive 401 with a Basic Auth challenge.
  */
 import type { ID3Tags } from "../../app/util/id3.ts";
+import type { Files } from "../../app/util/files.ts";
 import { getUploadedFiles, handleS3Upload } from "../../app/util/s3.server.ts";
 import { regenerateInfoCache } from "../info.ts";
 import { requireAdminAuth } from "../utils/basicAuth.ts";
@@ -24,6 +25,12 @@ async function* formDataToAsyncIterable(file: File): AsyncIterable<Uint8Array> {
     offset += chunkSize;
     yield chunk;
   }
+}
+
+function hasTracks(files: Files): boolean {
+  return Object.values(files).some((albums) =>
+    Object.values(albums).some((album) => album.tracks.length > 0)
+  );
 }
 
 /**
@@ -92,12 +99,16 @@ export async function handleUpload(req: Request): Promise<Response> {
       // Don't fail the entire request if cache refresh fails
     }
 
-    if (successCount > 0 && uploadedFiles) {
+    if (successCount > 0 && uploadedFiles && hasTracks(uploadedFiles)) {
       try {
         await regenerateInfoCache(req, uploadedFiles);
       } catch (error) {
         console.error("Failed to regenerate info cache:", error);
       }
+    } else if (successCount > 0 && uploadedFiles) {
+      console.error(
+        "Skipping info cache regeneration because the refreshed file list was empty after a successful upload",
+      );
     }
 
     // If all files failed, return error

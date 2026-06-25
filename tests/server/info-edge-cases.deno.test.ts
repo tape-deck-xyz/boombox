@@ -16,8 +16,10 @@ import {
   INFO_CACHE_PATH,
   INFO_ETAG_CACHE_PATH,
   readInfoCache,
+  regenerateInfoCache,
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
+import type { Files } from "../../app/util/files.ts";
 
 Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
   setupStorageEnv();
@@ -42,6 +44,107 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
     assertEquals(typeof payload.contents, "object");
   } finally {
     setSendBehavior(null);
+  }
+});
+
+Deno.test("resolveInfoPayloadForGet keeps newer disk catalog when S3 still has stale info.json", async () => {
+  const prevTtl = Deno.env.get("INFO_DISK_CACHE_TTL_TEST_MS");
+  setupStorageEnv();
+  const freshFiles: Files = {
+    "Fresh Artist": {
+      "Fresh Album": {
+        id: "Fresh Artist/Fresh Album",
+        title: "Fresh Album",
+        coverArtUrl: null,
+        tracks: [
+          {
+            title: "Fresh Track",
+            trackNum: 1,
+            lastModified: null,
+            url:
+              "https://test-bucket.s3.test-region.amazonaws.com/Fresh%20Artist/Fresh%20Album/1__Fresh%20Track.mp3",
+          },
+        ],
+      },
+    },
+  };
+  const staleBody = JSON.stringify({
+    contents: {
+      "Old Artist": {
+        "Old Album": {
+          id: "Old Artist/Old Album",
+          title: "Old Album",
+          coverArtUrl: null,
+          tracks: [
+            {
+              title: "Old Track",
+              trackNum: 1,
+              lastModified: null,
+              url:
+                "https://test-bucket.s3.test-region.amazonaws.com/Old%20Artist/Old%20Album/1__Old%20Track.mp3",
+            },
+          ],
+        },
+      },
+    },
+    timestamp: 1,
+    hostname: "",
+    schemaVersion: 1,
+  });
+
+  try {
+    Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", "0");
+    await Deno.mkdir("cache", { recursive: true });
+    await Deno.remove(INFO_CACHE_PATH).catch(() => undefined);
+    await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => undefined);
+
+    setSendBehavior((command: unknown) => {
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (key !== "info.json") return defaultS3MockReply(command);
+      if (name === "PutObjectCommand") {
+        return Promise.reject(new Error("mock stale S3 write failure"));
+      }
+      if (name === "HeadObjectCommand") {
+        return Promise.resolve({
+          ETag: '"old-etag"',
+          LastModified: new Date(),
+        });
+      }
+      if (name === "GetObjectCommand") {
+        return Promise.resolve({
+          ETag: '"old-etag"',
+          Body: new ReadableStream({
+            start(c) {
+              c.enqueue(new TextEncoder().encode(staleBody));
+              c.close();
+            },
+          }),
+        });
+      }
+      return defaultS3MockReply(command);
+    });
+
+    const freshPayload = await regenerateInfoCache(
+      new Request("http://fresh.example/"),
+      freshFiles,
+    );
+    await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => undefined);
+
+    const r = await resolveInfoPayloadForGet(
+      new Request("http://fresh.example/info"),
+    );
+    const disk = await readInfoCache();
+
+    assertEquals(r.payload.timestamp, freshPayload.timestamp);
+    assertEquals(Object.keys(r.payload.contents), ["Fresh Artist"]);
+    assertEquals(disk?.timestamp, freshPayload.timestamp);
+    assertEquals(Object.keys(disk?.contents ?? {}), ["Fresh Artist"]);
+  } finally {
+    setSendBehavior(null);
+    if (prevTtl === undefined) cleanupTtlEnv();
+    else Deno.env.set("INFO_DISK_CACHE_TTL_TEST_MS", prevTtl);
   }
 });
 
