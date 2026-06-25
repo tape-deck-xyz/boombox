@@ -109,6 +109,17 @@ function setFileInputFiles(
   );
 }
 
+async function waitForCondition(
+  predicate: () => boolean,
+  message: string,
+): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(message);
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -562,11 +573,15 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitForCondition(
+      () =>
+        errorEl.textContent ===
+          "Upload failed for all files: S3 connection error",
+      "server error message should be rendered",
+    );
     assertEquals(
       errorEl.textContent,
       "Upload failed for all files: S3 connection error",
@@ -603,11 +618,13 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitForCondition(
+      () => errorEl.textContent === "Failed to fetch",
+      "network error message should be rendered",
+    );
     assertEquals(
       errorEl.textContent,
       "Failed to fetch",
@@ -642,10 +659,12 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     let errorEl = dialog.querySelector("#upload-error") as HTMLElement;
+    await waitForCondition(
+      () => errorEl.textContent === "Server error",
+      "server error should be rendered before selecting new files",
+    );
     assertEquals(errorEl.textContent, "Server error");
     assert(!errorEl.hidden);
 
@@ -693,8 +712,10 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
+    await waitForCondition(
+      () => capturedBody !== null,
+      "fetch should receive selected file FormData",
+    );
 
     assertExists(capturedBody);
     const body = capturedBody as FormData;
