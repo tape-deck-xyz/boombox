@@ -76,6 +76,8 @@ export class TracklistItemCustomElement extends HTMLElement {
   private trackArtist: string | null = null;
   private trackDuration: string | null = null;
   private trackNumber: string | null = null;
+  private loadedTrackUrl: string | null = null;
+  private warnedMissingTrackUrl = false;
 
   /**
    * Sets the track duration from audio metadata and updates the display.
@@ -162,47 +164,7 @@ export class TracklistItemCustomElement extends HTMLElement {
     audio.load();
   }
 
-  /**
-   * Handles click events on the track item.
-   *
-   * Dispatches a custom `track-click` event with the decoded track URL
-   * in the event detail. The event bubbles up the DOM tree.
-   *
-   * @private
-   */
-  private clickHandler = () => {
-    const evt = new CustomEvent(
-      "track-click",
-      {
-        bubbles: true,
-        detail: {
-          trackUrl: decodeURIComponent(
-            this.getAttribute("data-track-url") || "",
-          ),
-        },
-      },
-    );
-
-    this.dispatchEvent(evt);
-  };
-
-  /**
-   * Creates a new TracklistItemCustomElement instance.
-   *
-   * Initializes the element by reading attributes and setting up the internal
-   * HTML structure. Automatically begins loading track duration metadata.
-   */
-  constructor() {
-    super();
-
-    this.trackName = this.getAttribute("data-track-name") || "";
-    this.trackArtist = this.getAttribute("data-track-artist") || "";
-    this.trackNumber = this.getAttribute("data-track-number") || "";
-
-    // Handle loading the track duration
-    const trackUrl = this.getAttribute("data-track-url") || "";
-    this.loadTrackDuration(trackUrl);
-
+  private render() {
     this.innerHTML = `
       <div class="track">
       <style>
@@ -250,14 +212,84 @@ export class TracklistItemCustomElement extends HTMLElement {
       margin-left: 16px;
     }
       </style>
-        <span class="track-number">${this.trackNumber}</span>
+        <span class="track-number"></span>
         <div class="track-info">
-          <div class="track-name">${this.trackName}</div>
-          <div class="track-artist">${this.trackArtist}</div>
+          <div class="track-name"></div>
+          <div class="track-artist"></div>
         </div>
-        <span class="track-duration">${this.trackDuration || " "}</span>
+        <span class="track-duration"> </span>
       </div>
     `;
+  }
+
+  private updateFromAttributes() {
+    this.trackName = this.getAttribute("data-track-name") || "";
+    this.trackArtist = this.getAttribute("data-track-artist") || "";
+    this.trackNumber = this.getAttribute("data-track-number") || "";
+
+    const trackNumberElement = this.querySelector(".track-number");
+    if (trackNumberElement) {
+      trackNumberElement.textContent = this.trackNumber;
+    }
+
+    const trackNameElement = this.querySelector(".track-name");
+    if (trackNameElement) {
+      trackNameElement.textContent = this.trackName;
+    }
+
+    const trackArtistElement = this.querySelector(".track-artist");
+    if (trackArtistElement) {
+      trackArtistElement.textContent = this.trackArtist;
+    }
+
+    const durationElement = this.querySelector(".track-duration");
+    if (durationElement) {
+      durationElement.textContent = this.trackDuration || " ";
+    }
+
+    const trackUrl = this.getAttribute("data-track-url") || "";
+    if (trackUrl && trackUrl !== this.loadedTrackUrl) {
+      this.loadedTrackUrl = trackUrl;
+      this.loadTrackDuration(trackUrl);
+    } else if (!trackUrl && this.isConnected && !this.warnedMissingTrackUrl) {
+      this.warnedMissingTrackUrl = true;
+      console.warn("No track URL provided for track", this.trackName);
+    }
+  }
+
+  /**
+   * Handles click events on the track item.
+   *
+   * Dispatches a custom `track-click` event with the decoded track URL
+   * in the event detail. The event bubbles up the DOM tree.
+   *
+   * @private
+   */
+  private clickHandler = () => {
+    const evt = new CustomEvent(
+      "track-click",
+      {
+        bubbles: true,
+        detail: {
+          trackUrl: decodeURIComponent(
+            this.getAttribute("data-track-url") || "",
+          ),
+        },
+      },
+    );
+
+    this.dispatchEvent(evt);
+  };
+
+  /**
+   * Creates a new TracklistItemCustomElement instance.
+   *
+   * Initializes the element by reading attributes and setting up the internal
+   * HTML structure. Automatically begins loading track duration metadata.
+   */
+  constructor() {
+    super();
+    this.render();
   }
 
   /**
@@ -268,6 +300,7 @@ export class TracklistItemCustomElement extends HTMLElement {
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Web_Components/Using_custom_elements#lifecycle_callbacks | MDN: Lifecycle Callbacks}
    */
   connectedCallback() {
+    this.updateFromAttributes();
     this.addEventListener("click", this.clickHandler);
   }
 
@@ -296,12 +329,12 @@ export class TracklistItemCustomElement extends HTMLElement {
    */
   attributeChangedCallback(
     _name: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _oldValue: string | null,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _newValue: string | null,
+    oldValue: string | null,
+    newValue: string | null,
   ) {
-    // console.log(`Attribute ${_name} has changed.`);
+    if (oldValue !== newValue) {
+      this.updateFromAttributes();
+    }
   }
 }
 

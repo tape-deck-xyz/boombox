@@ -165,6 +165,14 @@ async function writeStoredS3Etag(etag: string): Promise<void> {
   await Deno.writeTextFile(INFO_ETAG_CACHE_PATH, etag);
 }
 
+async function clearStoredS3Etag(): Promise<void> {
+  try {
+    await Deno.remove(INFO_ETAG_CACHE_PATH);
+  } catch {
+    // Missing or unremovable sidecar should not hide the original S3 write error.
+  }
+}
+
 async function getDiskCacheMtimeMs(): Promise<number | null> {
   try {
     const s = await Deno.stat(INFO_CACHE_PATH);
@@ -225,6 +233,7 @@ export async function regenerateInfoCache(
     await writeStoredS3Etag(etag);
   } catch (e) {
     logger.warn("Could not persist info.json to S3", { error: String(e) });
+    await clearStoredS3Etag();
   }
   return payload;
 }
@@ -302,14 +311,16 @@ export function withRequestHostname(
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
+  let head: { etag: string; lastModified: Date | undefined } | null;
   try {
-    const head = await headInfoJsonObjectFromS3();
-    exists = head != null;
-  } catch {
-    exists = false;
+    head = await headInfoJsonObjectFromS3();
+  } catch (e) {
+    logger.warn("Startup: could not verify whether info.json exists in S3", {
+      error: String(e),
+    });
+    return;
   }
-  if (exists) return;
+  if (head) return;
 
   const local = await readInfoCache();
   if (local) {
