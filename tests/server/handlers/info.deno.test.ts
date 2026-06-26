@@ -7,6 +7,10 @@ import {
   setupAdminEnv,
   setupStorageEnv,
 } from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
@@ -254,6 +258,68 @@ Deno.test("Info handler returns 304 when If-None-Match matches ETag", async () =
   assertEquals(second.status, 304);
   assertEquals(await second.text(), "");
   assertEquals(second.headers.get("ETag"), etag);
+});
+
+Deno.test("Info handler does not return 304 with stale ETag after S3 catalog PUT fails", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  mockFilesWithAlbum();
+
+  const first = await handleInfo(
+    new Request("http://etag-stale.example/info?refresh=1", {
+      method: "GET",
+      headers: { Authorization: createAdminAuthHeader() },
+    }),
+    {},
+  );
+  assertEquals(first.status, 200);
+  const oldEtag = first.headers.get("ETag");
+  assertEquals(oldEtag != null, true);
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Test%20Artist/Test%20Album/1__Test%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("mock info.json put failure"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const refresh = await handleInfo(
+      new Request("http://etag-stale.example/info?refresh=1", {
+        method: "GET",
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+      {},
+    );
+    assertEquals(refresh.status, 200);
+
+    const conditional = await handleInfo(
+      new Request("http://etag-stale.example/info", {
+        method: "GET",
+        headers: { "If-None-Match": oldEtag! },
+      }),
+      {},
+    );
+
+    assertEquals(conditional.status, 200);
+    assertEquals(conditional.headers.get("ETag"), null);
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test(
