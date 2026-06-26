@@ -201,7 +201,7 @@ const albumHeaderStyles = `
  * Full S3 URL to the album directory. Must end with `/{artistId}/{albumId}`.
  * Used to derive the artist and album names for display, and to fetch the first
  * track for album art and gradient color extraction when `data-cover-art-url` is absent.
- * Throws at construction time if missing or malformed.
+ * Rendering is deferred until this attribute is available. Throws if malformed.
  *
  * ### `data-cover-art-url` (string, optional)
  * Public HTTPS URL from the info document. Passed to the nested album image and used
@@ -212,15 +212,27 @@ export class AlbumHeaderCustomElement extends HTMLElement {
 
   private scrollSentinel: HTMLDivElement | null = null;
   private scrollObserver: IntersectionObserver | null = null;
+  private renderedAlbumUrl: string | null = null;
+  private renderedCoverArtUrl: string | null = null;
 
   constructor() {
     super();
+    this.attachShadow({ mode: "open" });
+  }
 
-    if (!this.getAttribute("data-album-url")) {
-      throw new Error("Album URL is required");
+  private renderFromAttributes(): boolean {
+    const albumUrl = this.getAttribute("data-album-url") as AlbumUrl | null;
+    if (!albumUrl) return false;
+
+    const coverArtUrl = this.getAttribute("data-cover-art-url");
+    if (
+      this.renderedAlbumUrl === albumUrl &&
+      this.renderedCoverArtUrl === coverArtUrl &&
+      this.shadowRoot?.querySelector(".album-header")
+    ) {
+      return true;
     }
 
-    const albumUrl = this.getAttribute("data-album-url") as AlbumUrl;
     const albumUrlParts = albumUrl.split("/");
     const albumId = albumUrlParts.pop();
     const artistId = albumUrlParts.pop();
@@ -230,8 +242,6 @@ export class AlbumHeaderCustomElement extends HTMLElement {
         "Artist ID or album ID missing or mis-configured in data-album-url attribute",
       );
     }
-
-    this.attachShadow({ mode: "open" });
 
     const template = document.createElement("template");
     template.innerHTML = `
@@ -247,9 +257,12 @@ export class AlbumHeaderCustomElement extends HTMLElement {
     </div>
   </header>
 `;
+    this.teardownScrollObserver();
+    while (this.shadowRoot!.firstChild) {
+      this.shadowRoot!.removeChild(this.shadowRoot!.firstChild);
+    }
     this.shadowRoot!.appendChild(template.content.cloneNode(true));
 
-    const coverArtUrl = this.getAttribute("data-cover-art-url");
     const albumImage = this.shadowRoot!.querySelector(
       "album-image-custom-element",
     );
@@ -286,9 +299,20 @@ export class AlbumHeaderCustomElement extends HTMLElement {
     } else {
       fromId3();
     }
+
+    this.renderedAlbumUrl = albumUrl;
+    this.renderedCoverArtUrl = coverArtUrl;
+    return true;
   }
 
   connectedCallback() {
+    if (!this.renderFromAttributes()) return;
+    this.setupScrollObserver();
+  }
+
+  private setupScrollObserver() {
+    if (this.scrollObserver) return;
+
     // Scroll handling with Intersection Observer for efficiency.
     // Use the scroll container: next sibling (when header is before the scroll area)
     // or nearest scrollable ancestor; otherwise viewport (body scroll).
@@ -357,13 +381,17 @@ export class AlbumHeaderCustomElement extends HTMLElement {
     return null;
   }
 
-  disconnectedCallback() {
+  private teardownScrollObserver() {
     if (this.scrollObserver && this.scrollSentinel) {
       this.scrollObserver.disconnect();
       this.scrollObserver = null;
       this.scrollSentinel.remove();
       this.scrollSentinel = null;
     }
+  }
+
+  disconnectedCallback() {
+    this.teardownScrollObserver();
   }
 
   connectedMoveCallback() {
@@ -376,12 +404,15 @@ export class AlbumHeaderCustomElement extends HTMLElement {
 
   attributeChangedCallback(
     name: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _oldValue: string | null,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _newValue: string | null,
+    oldValue: string | null,
+    newValue: string | null,
   ) {
-    console.log(`Attribute ${name} has changed.`);
+    if (oldValue === newValue) return;
+    if (name === "data-album-url" || name === "data-cover-art-url") {
+      if (this.renderFromAttributes() && this.isConnected) {
+        this.setupScrollObserver();
+      }
+    }
   }
 }
 

@@ -270,6 +270,37 @@ Deno.test(
 );
 
 Deno.test(
+  "TracklistItemCustomElement - renders attributes set after construction",
+  async () => {
+    setupDOMEnvironment();
+    await import("./tracklist-item-custom-element.ts");
+
+    const el = linkedomDocument.createElement("tracklist-item-custom-element");
+    el.setAttribute("data-track-name", "Fragment Song");
+    el.setAttribute("data-track-artist", "Fragment Artist");
+    el.setAttribute("data-track-number", "7");
+    el.setAttribute("data-track-url", "/music/fragment-song.mp3");
+    linkedomDocument.body?.appendChild(el);
+
+    assertExists(el);
+    assertEquals(el.querySelector(".track-name")?.textContent, "Fragment Song");
+    assertEquals(
+      el.querySelector(".track-artist")?.textContent,
+      "Fragment Artist",
+    );
+    assertEquals(el.querySelector(".track-number")?.textContent, "7");
+    assertExists(
+      lastMockAudio,
+      "duration metadata should load from the parsed data-track-url",
+    );
+    assertEquals(
+      (lastMockAudio as unknown as { src: string }).src,
+      "/music/fragment-song.mp3",
+    );
+  },
+);
+
+Deno.test(
   "TracklistItemCustomElement - should render HTML structure",
   async () => {
     setupDOMEnvironment();
