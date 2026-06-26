@@ -109,6 +109,17 @@ function setFileInputFiles(
   );
 }
 
+async function waitFor(
+  predicate: () => boolean,
+  message: string,
+): Promise<void> {
+  for (let i = 0; i < 10; i++) {
+    if (predicate()) return;
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  assert(predicate(), message);
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -562,11 +573,13 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitFor(
+      () => errorEl.textContent !== "",
+      "upload error should be rendered after failed submit",
+    );
     assertEquals(
       errorEl.textContent,
       "Upload failed for all files: S3 connection error",
@@ -603,11 +616,13 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     const errorEl = dialog.querySelector("#upload-error") as HTMLElement;
     assertExists(errorEl);
+    await waitFor(
+      () => errorEl.textContent !== "",
+      "upload error should be rendered after network failure",
+    );
     assertEquals(
       errorEl.textContent,
       "Failed to fetch",
@@ -642,10 +657,12 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
 
     let errorEl = dialog.querySelector("#upload-error") as HTMLElement;
+    await waitFor(
+      () => errorEl.textContent !== "",
+      "upload error should be rendered before testing file-change clearing",
+    );
     assertEquals(errorEl.textContent, "Server error");
     assert(!errorEl.hidden);
 
@@ -693,8 +710,10 @@ Deno.test(
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
     );
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(
+      () => capturedBody !== null,
+      "fetch should receive FormData after submit handler settles",
+    );
 
     assertExists(capturedBody);
     const body = capturedBody as FormData;
