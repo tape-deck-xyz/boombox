@@ -1,7 +1,17 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import { setGetID3TagsReturn } from "../s3.server.test-mocks/id3.ts";
+import {
+  clearSendCalls,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupStorageEnv,
+} from "./test-utils.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -175,5 +185,58 @@ Deno.test({
     }
   },
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
+  sanitizeOps: false,
+});
+
+Deno.test({
+  name: "handleUpload returns 500 when post-upload library refresh fails",
+  async fn() {
+    setupStorageEnv();
+    Deno.env.set("ADMIN_USER", ADMIN_USER);
+    Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+    clearSendCalls();
+    setGetID3TagsReturn({
+      artist: "Uploaded Artist",
+      album: "Uploaded Album",
+      title: "Uploaded Track",
+      trackNumber: 1,
+    });
+    setSendBehavior((command) => {
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "PutObjectCommand") return Promise.resolve({});
+      if (name === "ListObjectsV2Command") {
+        return Promise.reject(new Error("S3 listing unavailable"));
+      }
+      return Promise.resolve({});
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append(
+        "files",
+        new File(["test audio content"], "test.mp3", {
+          type: "audio/mpeg",
+        }),
+      );
+
+      const response = await handleUpload(
+        new Request("http://localhost:8000/", {
+          method: "POST",
+          body: formData,
+          headers: { Authorization: createAdminAuthHeader() },
+        }),
+      );
+
+      assertEquals(response.status, 500);
+      assertEquals(
+        await response.text(),
+        "Upload succeeded, but library refresh failed: S3 listing unavailable",
+      );
+    } finally {
+      setSendBehavior(null);
+    }
+  },
+  sanitizeResources: false,
   sanitizeOps: false,
 });
