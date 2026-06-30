@@ -460,6 +460,49 @@ Deno.test("getUploadedFiles throws when S3 ListObjectsV2 rejects with non-Error"
   );
 });
 
+Deno.test("getUploadedFiles retries after a failed S3 listing", async () => {
+  setupEnv();
+  clearS3SendCalls();
+  let shouldFail = true;
+  setSendBehavior((command) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      if (shouldFail) {
+        return Promise.reject(new Error("S3 service unavailable"));
+      }
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Recovery Artist/Recovery Album/1__Recovered Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return Promise.resolve({});
+  });
+
+  let sawInitialFailure = false;
+  try {
+    await getUploadedFiles(true);
+  } catch (error) {
+    sawInitialFailure = error instanceof Error &&
+      error.message === "S3 service unavailable";
+  }
+  assertEquals(sawInitialFailure, true);
+
+  shouldFail = false;
+  const files = await getUploadedFiles();
+
+  assertEquals(Object.keys(files), ["Recovery Artist"]);
+  assertEquals(
+    files["Recovery Artist"]["Recovery Album"].tracks[0].title,
+    "Recovered Track.mp3",
+  );
+});
+
 Deno.test("getUploadedFiles returns empty Files when S3 returns no Contents", async () => {
   setupEnv();
   clearS3SendCalls();
