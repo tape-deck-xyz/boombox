@@ -18,6 +18,7 @@ import {
   createLinkedomEnv,
   wireLinkedomToGlobal,
 } from "../test.utils.ts";
+import type { UploadDialogFileItemCustomElement } from "./upload-dialog-file-item-custom-element.ts";
 
 const { document: linkedomDocument, window: linkedomWindow } =
   createLinkedomEnv();
@@ -107,6 +108,15 @@ function setFileInputFiles(
   fileInput.dispatchEvent(
     new linkedomWindow.Event("change", { bubbles: true }),
   );
+}
+
+async function waitForSelectedFileMetadata(
+  dialog: HTMLDialogElement,
+): Promise<void> {
+  const items = dialog.querySelectorAll(
+    "upload-dialog-file-item",
+  ) as NodeListOf<UploadDialogFileItemCustomElement>;
+  await Promise.all(Array.from(items).map((item) => item.metadataReady));
 }
 
 // ============================================================================
@@ -558,6 +568,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +610,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +650,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +702,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
