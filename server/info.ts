@@ -306,8 +306,11 @@ export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
+  } catch (e) {
+    logger.warn("Startup: could not verify info.json absence in S3", {
+      error: String(e),
+    });
+    return;
   }
   if (exists) return;
 

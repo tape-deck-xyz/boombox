@@ -109,6 +109,17 @@ function setFileInputFiles(
   );
 }
 
+type UploadDialogFileItemTestElement = HTMLElement & {
+  metadataReady: Promise<unknown>;
+};
+
+async function waitForSelectedFileMetadata(dialog: ParentNode): Promise<void> {
+  const items = dialog.querySelectorAll(
+    "upload-dialog-file-item",
+  ) as NodeListOf<UploadDialogFileItemTestElement>;
+  await Promise.all(Array.from(items).map((item) => item.metadataReady));
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -558,6 +569,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +611,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +651,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +703,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
