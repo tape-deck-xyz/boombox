@@ -3,12 +3,15 @@ import { assertEquals } from "@std/assert";
 import { mockFilesWithAlbum, setupStorageEnv } from "./handlers/test-utils.ts";
 import {
   clearSendCalls,
+  defaultS3MockReply,
   resetMockInfoJsonObject,
   sendCalls,
+  setSendBehavior,
 } from "./s3.server.test-mocks/s3-client.ts";
 import {
   ensureInfoJsonSeededAtStartup,
   INFO_CACHE_PATH,
+  regenerateInfoCache,
 } from "../../server/info.ts";
 
 function isPutInfoJson(command: unknown): boolean {
@@ -52,11 +55,36 @@ Deno.test("ensureInfoJsonSeededAtStartup does not PUT when mock S3 already has i
   mockFilesWithAlbum();
   clearSendCalls();
 
-  const { regenerateInfoCache } = await import("../../server/info.ts");
   await regenerateInfoCache(new Request("http://warm.example/"));
 
   clearSendCalls();
   await ensureInfoJsonSeededAtStartup();
+
+  const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
+  assertEquals(putCount, 0);
+});
+
+Deno.test("ensureInfoJsonSeededAtStartup does not PUT local cache when S3 HEAD fails", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  await regenerateInfoCache(new Request("http://head-failure.example/"));
+
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "HeadObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("S3 HEAD timeout"));
+    }
+    return defaultS3MockReply(command);
+  });
+  clearSendCalls();
+
+  try {
+    await ensureInfoJsonSeededAtStartup();
+  } finally {
+    setSendBehavior(null);
+  }
 
   const putCount = sendCalls.filter((c) => isPutInfoJson(c.command)).length;
   assertEquals(putCount, 0);
