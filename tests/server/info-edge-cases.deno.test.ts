@@ -310,3 +310,33 @@ Deno.test(
     assertEquals(disk.includes('"contents"'), true);
   },
 );
+
+Deno.test("ensureInfoJsonSeededAtStartup does not overwrite S3 when HEAD throws", async () => {
+  setupStorageEnv();
+  mockFilesWithAlbum();
+  resetMockInfoJsonObject();
+  const { regenerateInfoCache } = await import("../../server/info.ts");
+  await regenerateInfoCache(new Request("http://seed-head-fail.example/"));
+
+  let putInfoJsonCount = 0;
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (key === "info.json" && name === "HeadObjectCommand") {
+      return Promise.reject(new Error("mock transient HEAD failure"));
+    }
+    if (key === "info.json" && name === "PutObjectCommand") {
+      putInfoJsonCount++;
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    await ensureInfoJsonSeededAtStartup();
+  } finally {
+    setSendBehavior(null);
+  }
+
+  assertEquals(putInfoJsonCount, 0);
+});
