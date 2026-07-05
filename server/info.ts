@@ -217,7 +217,7 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * @param req - Request used to derive hostname in the persisted payload
  * @returns The generated document
  */
-export async function regenerateInfoCache(
+export function regenerateInfoCache(
   req: Request,
 ): Promise<InfoPayload> {
   return queueInfoRegeneration(async () => {
