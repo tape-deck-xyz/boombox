@@ -93,6 +93,17 @@ export type InfoPayload = {
   schemaVersion: number;
 };
 
+let infoRegenerationQueue: Promise<void> = Promise.resolve();
+
+function queueInfoRegeneration<T>(operation: () => Promise<T>): Promise<T> {
+  const run = infoRegenerationQueue.then(operation, operation);
+  infoRegenerationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 /**
  * When unset or not `false`, `GET /info` is available without admin credentials
  * (see `docs/library-catalog-and-info.md`).
@@ -204,29 +215,29 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
  * @param req - Request used to derive hostname in the persisted payload
- * @param files - Optional pre-fetched files; if omitted, fetches from S3
  * @returns The generated document
  */
-export async function regenerateInfoCache(
+export function regenerateInfoCache(
   req: Request,
-  files?: Files,
 ): Promise<InfoPayload> {
-  const hostname = catalogHostnameForRequest(req);
-  const contents = files ?? await getUploadedFiles(true);
-  const payload: InfoPayload = {
-    contents,
-    timestamp: Date.now(),
-    hostname,
-    schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
-  };
-  await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
-  return payload;
+  return queueInfoRegeneration(async () => {
+    const hostname = catalogHostnameForRequest(req);
+    const contents = await getUploadedFiles(true);
+    const payload: InfoPayload = {
+      contents,
+      timestamp: Date.now(),
+      hostname,
+      schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
+    };
+    await writeInfoCache(payload);
+    try {
+      const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
+      await writeStoredS3Etag(etag);
+    } catch (e) {
+      logger.warn("Could not persist info.json to S3", { error: String(e) });
+    }
+    return payload;
+  });
 }
 
 /**

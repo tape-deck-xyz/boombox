@@ -16,8 +16,10 @@ import {
   INFO_CACHE_PATH,
   INFO_ETAG_CACHE_PATH,
   readInfoCache,
+  regenerateInfoCache,
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
+import { getInfoJsonObjectFromS3 } from "../../app/util/s3.server.ts";
 
 Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
   setupStorageEnv();
@@ -40,6 +42,94 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
     );
     assertEquals(typeof payload.timestamp, "number");
     assertEquals(typeof payload.contents, "object");
+  } finally {
+    setSendBehavior(null);
+  }
+});
+
+Deno.test("regenerateInfoCache prevents stale concurrent rebuilds from overwriting newer S3 info.json", async () => {
+  setupStorageEnv();
+  resetMockInfoJsonObject();
+
+  let listCount = 0;
+  let putCount = 0;
+  let firstPutStarted!: () => void;
+  let releaseFirstPut!: () => void;
+  let releaseFirstPutIfNeeded = false;
+  const firstPutStartedPromise = new Promise<void>((resolve) => {
+    firstPutStarted = resolve;
+  });
+  const firstPutGate = new Promise<void>((resolve) => {
+    releaseFirstPut = () => {
+      if (!releaseFirstPutIfNeeded) {
+        releaseFirstPutIfNeeded = true;
+        resolve();
+      }
+    };
+  });
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+
+    if (name === "ListObjectsV2Command") {
+      listCount++;
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Race%20Artist/Race%20Album/1__First%20Track.mp3",
+            LastModified: new Date(),
+          },
+          ...(listCount === 1 ? [] : [{
+            Key: "Race%20Artist/Race%20Album/2__Second%20Track.mp3",
+            LastModified: new Date(),
+          }]),
+        ],
+        IsTruncated: false,
+      });
+    }
+
+    if (name === "PutObjectCommand" && key === "info.json") {
+      putCount++;
+      if (putCount === 1) {
+        firstPutStarted();
+        return firstPutGate.then(() => defaultS3MockReply(command));
+      }
+      releaseFirstPut();
+    }
+
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const first = regenerateInfoCache(new Request("http://race.example/"));
+    await firstPutStartedPromise;
+    const second = regenerateInfoCache(new Request("http://race.example/"));
+
+    await Promise.race([
+      second.then(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, 20)),
+    ]);
+    releaseFirstPut();
+    await Promise.all([first, second]);
+
+    const stored = await getInfoJsonObjectFromS3();
+    const parsed = JSON.parse(stored?.bodyText ?? "{}") as {
+      contents?: {
+        "Race Artist"?: {
+          "Race Album"?: {
+            tracks?: Array<{ title: string }>;
+          };
+        };
+      };
+    };
+    assertEquals(
+      parsed.contents?.["Race Artist"]?.["Race Album"]?.tracks?.map((track) =>
+        track.title
+      ),
+      ["First Track.mp3", "Second Track.mp3"],
+    );
   } finally {
     setSendBehavior(null);
   }
