@@ -18,6 +18,8 @@ import {
 
 const logger = createLogger("Info");
 
+let regenerateInfoCacheQueue: Promise<void> = Promise.resolve();
+
 /** Path to the on-disk cache file */
 export const INFO_CACHE_PATH = "cache/info.json";
 
@@ -204,15 +206,28 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
  * @param req - Request used to derive hostname in the persisted payload
- * @param files - Optional pre-fetched files; if omitted, fetches from S3
  * @returns The generated document
  */
 export async function regenerateInfoCache(
   req: Request,
-  files?: Files,
 ): Promise<InfoPayload> {
+  const previous = regenerateInfoCacheQueue;
+  let releaseQueue!: () => void;
+  regenerateInfoCacheQueue = new Promise((resolve) => {
+    releaseQueue = resolve;
+  });
+
+  await previous.catch(() => {});
+  try {
+    return await regenerateInfoCacheNow(req);
+  } finally {
+    releaseQueue();
+  }
+}
+
+async function regenerateInfoCacheNow(req: Request): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
-  const contents = files ?? await getUploadedFiles(true);
+  const contents = await getUploadedFiles(true);
   const payload: InfoPayload = {
     contents,
     timestamp: Date.now(),

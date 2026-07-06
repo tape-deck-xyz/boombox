@@ -6,7 +6,7 @@
  * receive 401 with a Basic Auth challenge.
  */
 import type { ID3Tags } from "../../app/util/id3.ts";
-import { getUploadedFiles, handleS3Upload } from "../../app/util/s3.server.ts";
+import { handleS3Upload } from "../../app/util/s3.server.ts";
 import { regenerateInfoCache } from "../info.ts";
 import { requireAdminAuth } from "../utils/basicAuth.ts";
 
@@ -92,8 +92,7 @@ export async function handleUpload(req: Request): Promise<Response> {
 
     if (successCount > 0) {
       try {
-        const uploadedFiles = await getUploadedFiles(true);
-        await regenerateInfoCache(req, uploadedFiles);
+        await regenerateInfoCache(req);
       } catch (error) {
         console.error("Failed to publish uploaded files to catalog:", error);
         return new Response(
