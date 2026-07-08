@@ -109,6 +109,16 @@ function setFileInputFiles(
   );
 }
 
+async function waitForSelectedFileMetadata(dialog: HTMLDialogElement) {
+  const fileItems = [
+    ...dialog.querySelectorAll("upload-dialog-file-item"),
+  ] as Array<HTMLElement & { metadataReady?: Promise<void> }>;
+  await Promise.all(
+    fileItems.map((fileItem) => fileItem.metadataReady ?? Promise.resolve()),
+  );
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -558,6 +568,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +610,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +650,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +702,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForSelectedFileMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
