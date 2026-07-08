@@ -219,13 +219,9 @@ export async function regenerateInfoCache(
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
+  const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
   await writeInfoCache(payload);
-  try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
-    await writeStoredS3Etag(etag);
-  } catch (e) {
-    logger.warn("Could not persist info.json to S3", { error: String(e) });
-  }
+  await writeStoredS3Etag(etag);
   return payload;
 }
 
@@ -302,12 +298,15 @@ export function withRequestHostname(
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
+  let exists: boolean;
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
+  } catch (e) {
+    logger.warn("Startup: could not verify S3 info.json existence", {
+      error: String(e),
+    });
+    return;
   }
   if (exists) return;
 

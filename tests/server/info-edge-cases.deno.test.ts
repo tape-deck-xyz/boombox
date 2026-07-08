@@ -1,5 +1,6 @@
 /** @file Branch coverage for {@link ../../server/info.ts} error and edge paths. */
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
+import type { Files } from "../../app/util/files.ts";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
@@ -19,27 +20,57 @@ import {
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
 
-Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
+Deno.test("regenerateInfoCache rejects and preserves disk cache when S3 PutObject for info.json fails", async () => {
   setupStorageEnv();
-  mockFilesWithAlbum();
-
-  setSendBehavior((command: unknown) => {
-    const key = (command as { input?: { Key?: string } }).input?.Key;
-    const name = (command as { constructor: { name: string } }).constructor
-      ?.name;
-    if (name === "PutObjectCommand" && key === "info.json") {
-      return Promise.reject(new Error("mock S3 put failure"));
-    }
-    return defaultS3MockReply(command);
-  });
+  const initialFiles: Files = {
+    "Initial Artist": {
+      "Initial Album": {
+        id: "Initial Artist/Initial Album",
+        title: "Initial Album",
+        tracks: [],
+        coverArtUrl: null,
+      },
+    },
+  };
+  const replacementFiles: Files = {
+    "Replacement Artist": {
+      "Replacement Album": {
+        id: "Replacement Artist/Replacement Album",
+        title: "Replacement Album",
+        tracks: [],
+        coverArtUrl: null,
+      },
+    },
+  };
 
   try {
     const { regenerateInfoCache } = await import("../../server/info.ts");
-    const payload = await regenerateInfoCache(
-      new Request("http://put-fail.example/"),
+    await regenerateInfoCache(
+      new Request("http://put-ok.example/"),
+      initialFiles,
     );
-    assertEquals(typeof payload.timestamp, "number");
-    assertEquals(typeof payload.contents, "object");
+    const diskBefore = await Deno.readTextFile(INFO_CACHE_PATH);
+
+    setSendBehavior((command: unknown) => {
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "PutObjectCommand" && key === "info.json") {
+        return Promise.reject(new Error("mock S3 put failure"));
+      }
+      return defaultS3MockReply(command);
+    });
+
+    await assertRejects(
+      () =>
+        regenerateInfoCache(
+          new Request("http://put-fail.example/"),
+          replacementFiles,
+        ),
+      Error,
+      "mock S3 put failure",
+    );
+    assertEquals(await Deno.readTextFile(INFO_CACHE_PATH), diskBefore);
   } finally {
     setSendBehavior(null);
   }
@@ -226,6 +257,38 @@ Deno.test(
     } finally {
       setSendBehavior(null);
     }
+  },
+);
+
+Deno.test(
+  "ensureInfoJsonSeededAtStartup does not seed from disk when S3 HEAD fails",
+  async () => {
+    setupStorageEnv();
+    mockFilesWithAlbum();
+    const { regenerateInfoCache } = await import("../../server/info.ts");
+    await regenerateInfoCache(new Request("http://head-fail-seed.example/"));
+
+    let infoPutAttempts = 0;
+    setSendBehavior((command: unknown) => {
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      if (name === "HeadObjectCommand" && key === "info.json") {
+        return Promise.reject(new Error("mock HEAD unavailable"));
+      }
+      if (name === "PutObjectCommand" && key === "info.json") {
+        infoPutAttempts++;
+      }
+      return defaultS3MockReply(command);
+    });
+
+    try {
+      await ensureInfoJsonSeededAtStartup();
+    } finally {
+      setSendBehavior(null);
+    }
+
+    assertEquals(infoPutAttempts, 0);
   },
 );
 
