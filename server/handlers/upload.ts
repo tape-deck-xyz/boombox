@@ -10,6 +10,10 @@ import { getUploadedFiles, handleS3Upload } from "../../app/util/s3.server.ts";
 import { regenerateInfoCache } from "../info.ts";
 import { requireAdminAuth } from "../utils/basicAuth.ts";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 /**
  * Convert FormData file entry to async iterable
  */
@@ -83,20 +87,24 @@ export async function handleUpload(req: Request): Promise<Response> {
       }
     }
 
-    // Force refresh of file cache and regenerate info cache when uploads succeeded
-    let uploadedFiles;
-    try {
-      uploadedFiles = await getUploadedFiles(true);
-    } catch (error) {
-      console.error("Failed to refresh file cache:", error);
-      // Don't fail the entire request if cache refresh fails
+    if (successCount === 0 && errors.length === 0) {
+      return new Response("No valid files provided", { status: 400 });
     }
 
-    if (successCount > 0 && uploadedFiles) {
+    // Force refresh and require canonical info.json to include successful uploads.
+    if (successCount > 0) {
       try {
-        await regenerateInfoCache(req, uploadedFiles);
+        const uploadedFiles = await getUploadedFiles(true);
+        await regenerateInfoCache(req, {
+          files: uploadedFiles,
+          requireS3: true,
+        });
       } catch (error) {
-        console.error("Failed to regenerate info cache:", error);
+        console.error("Failed to publish upload catalog:", error);
+        return new Response(
+          `Upload succeeded but catalog update failed: ${errorMessage(error)}`,
+          { status: 500 },
+        );
       }
     }
 

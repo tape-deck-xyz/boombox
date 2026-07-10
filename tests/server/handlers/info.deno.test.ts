@@ -1,6 +1,11 @@
 /** @file Tests for info endpoint handler */
 import { assertEquals } from "@std/assert";
 import { handleInfo } from "../../../server/handlers/info.ts";
+import { INFO_CACHE_PATH } from "../../../server/info.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
@@ -47,6 +52,58 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname when ref
   assertEquals(typeof body.timestamp, "number");
   assertEquals(body.hostname, "example.com");
   assertEquals(typeof body.schemaVersion, "number");
+});
+
+Deno.test("Info handler fails refresh and preserves disk cache when S3 info.json publish fails", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  mockFilesWithAlbum();
+
+  const first = await handleInfo(
+    new Request("http://stable.example/info?refresh=1", {
+      method: "GET",
+      headers: { Authorization: createAdminAuthHeader() },
+    }),
+    {},
+  );
+  assertEquals(first.status, 200);
+  const cacheBefore = await Deno.readTextFile(INFO_CACHE_PATH);
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          {
+            Key: "Other%20Artist/Other%20Album/1__Other%20Track.mp3",
+            LastModified: new Date(),
+          },
+        ],
+        IsTruncated: false,
+      });
+    }
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("mock info publish failure"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const failed = await handleInfo(
+      new Request("http://failed-refresh.example/info?refresh=1", {
+        method: "GET",
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+      {},
+    );
+
+    assertEquals(failed.status, 500);
+    assertEquals(await Deno.readTextFile(INFO_CACHE_PATH), cacheBefore);
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test("Info handler uses cache when no refresh param", async () => {
