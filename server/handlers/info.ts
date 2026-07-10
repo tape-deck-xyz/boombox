@@ -45,7 +45,12 @@ export async function handleInfo(
   let etagForHttp: string | undefined;
   let payload;
   if (wantsRefresh) {
-    payload = await regenerateInfoCache(req);
+    try {
+      payload = await regenerateInfoCache(req, { requireS3: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return new Response(`Info refresh failed: ${message}`, { status: 500 });
+    }
     etagForHttp = (await getCachedInfoS3Etag()) ?? undefined;
   } else {
     const resolved = await resolveInfoPayloadForGet(req);

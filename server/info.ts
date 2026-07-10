@@ -93,6 +93,14 @@ export type InfoPayload = {
   schemaVersion: number;
 };
 
+/** Options for rebuilding the canonical library catalog. */
+export interface RegenerateInfoCacheOptions {
+  /** Pre-fetched S3 file tree; omitted to force a fresh S3 listing. */
+  files?: Files;
+  /** Throw when publishing canonical `info.json` to S3 fails. */
+  requireS3?: boolean;
+}
+
 /**
  * When unset or not `false`, `GET /info` is available without admin credentials
  * (see `docs/library-catalog-and-info.md`).
@@ -204,21 +212,30 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  * Regenerate the info cache with fresh data from S3 listing; persist to disk and `info.json`.
  *
  * @param req - Request used to derive hostname in the persisted payload
- * @param files - Optional pre-fetched files; if omitted, fetches from S3
+ * @param options - Optional pre-fetched files and durability requirements
  * @returns The generated document
  */
 export async function regenerateInfoCache(
   req: Request,
-  files?: Files,
+  options: RegenerateInfoCacheOptions = {},
 ): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
-  const contents = files ?? await getUploadedFiles(true);
+  const contents = options.files ?? await getUploadedFiles(true);
   const payload: InfoPayload = {
     contents,
     timestamp: Date.now(),
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
+
+  if (options.requireS3) {
+    assertValidInfoDocument(payload);
+    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
+    await writeInfoCache(payload);
+    await writeStoredS3Etag(etag);
+    return payload;
+  }
+
   await writeInfoCache(payload);
   try {
     const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
@@ -302,14 +319,15 @@ export function withRequestHostname(
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
   try {
     const head = await headInfoJsonObjectFromS3();
-    exists = head != null;
-  } catch {
-    exists = false;
+    if (head != null) return;
+  } catch (e) {
+    logger.warn("Startup: could not verify S3 info.json; skipping seed", {
+      error: String(e),
+    });
+    return;
   }
-  if (exists) return;
 
   const local = await readInfoCache();
   if (local) {
