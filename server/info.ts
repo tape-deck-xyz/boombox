@@ -93,6 +93,12 @@ export type InfoPayload = {
   schemaVersion: number;
 };
 
+/** Options for rebuilding the persisted library catalog. */
+export interface RegenerateInfoCacheOptions {
+  /** Require canonical S3 `info.json` publication before updating disk cache. */
+  requireS3?: boolean;
+}
+
 /**
  * When unset or not `false`, `GET /info` is available without admin credentials
  * (see `docs/library-catalog-and-info.md`).
@@ -205,11 +211,13 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  *
  * @param req - Request used to derive hostname in the persisted payload
  * @param files - Optional pre-fetched files; if omitted, fetches from S3
+ * @param options - Durability options for the regenerated document
  * @returns The generated document
  */
 export async function regenerateInfoCache(
   req: Request,
   files?: Files,
+  options: RegenerateInfoCacheOptions = {},
 ): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
   const contents = files ?? await getUploadedFiles(true);
@@ -219,9 +227,17 @@ export async function regenerateInfoCache(
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
+  const json = JSON.stringify(payload);
+  if (options.requireS3) {
+    const etag = await putInfoJsonObjectToS3(json);
+    await writeInfoCache(payload);
+    await writeStoredS3Etag(etag);
+    return payload;
+  }
+
   await writeInfoCache(payload);
   try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
+    const etag = await putInfoJsonObjectToS3(json);
     await writeStoredS3Etag(etag);
   } catch (e) {
     logger.warn("Could not persist info.json to S3", { error: String(e) });

@@ -83,21 +83,9 @@ export async function handleUpload(req: Request): Promise<Response> {
       }
     }
 
-    // Force refresh of file cache and regenerate info cache when uploads succeeded
-    let uploadedFiles;
-    try {
-      uploadedFiles = await getUploadedFiles(true);
-    } catch (error) {
-      console.error("Failed to refresh file cache:", error);
-      // Don't fail the entire request if cache refresh fails
-    }
-
-    if (successCount > 0 && uploadedFiles) {
-      try {
-        await regenerateInfoCache(req, uploadedFiles);
-      } catch (error) {
-        console.error("Failed to regenerate info cache:", error);
-      }
+    if (successCount > 0) {
+      const uploadedFiles = await getUploadedFiles(true);
+      await regenerateInfoCache(req, uploadedFiles, { requireS3: true });
     }
 
     // If all files failed, return error

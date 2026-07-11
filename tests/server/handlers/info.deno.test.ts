@@ -1,12 +1,18 @@
 /** @file Tests for info endpoint handler */
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { handleInfo } from "../../../server/handlers/info.ts";
+import { INFO_CACHE_PATH, INFO_ETAG_CACHE_PATH } from "../../../server/info.ts";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
   setupAdminEnv,
   setupStorageEnv,
 } from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  resetMockInfoJsonObject,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
@@ -47,6 +53,56 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname when ref
   assertEquals(typeof body.timestamp, "number");
   assertEquals(body.hostname, "example.com");
   assertEquals(typeof body.schemaVersion, "number");
+});
+
+Deno.test("Info handler refresh fails when canonical info.json publication fails", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  resetMockInfoJsonObject();
+  await Deno.remove(INFO_CACHE_PATH).catch(() => {});
+  await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => {});
+  const now = new Date();
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("info publish failed"));
+    }
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          { Key: "Test Artist/Test Album/1__Test Song", LastModified: now },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    try {
+      await handleInfo(
+        new Request("http://example.com:8000/info?refresh=1", {
+          method: "GET",
+          headers: { Authorization: createAdminAuthHeader() },
+        }),
+        {},
+      );
+      assert(false, "expected refresh to fail when info.json publish fails");
+    } catch (error) {
+      assert(error instanceof Error);
+      assertEquals(error.message, "info publish failed");
+    }
+    const cacheWasWritten = await Deno.stat(INFO_CACHE_PATH)
+      .then(() => true)
+      .catch(() => false);
+    assertEquals(cacheWasWritten, false);
+  } finally {
+    setSendBehavior(null);
+    await Deno.remove(INFO_CACHE_PATH).catch(() => {});
+    await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => {});
+  }
 });
 
 Deno.test("Info handler uses cache when no refresh param", async () => {

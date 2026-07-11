@@ -1,7 +1,19 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import { INFO_CACHE_PATH, INFO_ETAG_CACHE_PATH } from "../../../server/info.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupAdminEnv,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  resetMockInfoJsonObject,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -176,4 +188,55 @@ Deno.test({
   },
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
   sanitizeOps: false,
+});
+
+Deno.test("handleUpload fails when canonical info.json publication fails", async () => {
+  setupAdminEnv();
+  setupStorageEnv();
+  resetMockInfoJsonObject();
+  await Deno.remove(INFO_CACHE_PATH).catch(() => {});
+  await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => {});
+  const now = new Date();
+  setSendBehavior((command: unknown) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("info publish failed"));
+    }
+    if (name === "ListObjectsV2Command") {
+      return Promise.resolve({
+        Contents: [
+          { Key: "Test Artist/Test Album/1__Test Song", LastModified: now },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const formData = new FormData();
+    formData.append(
+      "files",
+      new File(["test audio content"], "test.mp3", { type: "audio/mpeg" }),
+    );
+    const response = await handleUpload(
+      new Request("http://localhost:8000/", {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: createAdminAuthHeader() },
+      }),
+    );
+
+    assertEquals(response.status, 500);
+    const cacheWasWritten = await Deno.stat(INFO_CACHE_PATH)
+      .then(() => true)
+      .catch(() => false);
+    assertEquals(cacheWasWritten, false);
+  } finally {
+    setSendBehavior(null);
+    await Deno.remove(INFO_CACHE_PATH).catch(() => {});
+    await Deno.remove(INFO_ETAG_CACHE_PATH).catch(() => {});
+  }
 });
