@@ -460,6 +460,48 @@ Deno.test("getUploadedFiles throws when S3 ListObjectsV2 rejects with non-Error"
   );
 });
 
+Deno.test("getUploadedFiles retries after S3 ListObjectsV2 rejects", async () => {
+  setupEnv();
+  clearS3SendCalls();
+  const now = new Date();
+  let listCalls = 0;
+  setSendBehavior((command) => {
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "ListObjectsV2Command") {
+      listCalls++;
+      if (listCalls === 1) {
+        return Promise.reject(new Error("temporary list failure"));
+      }
+      return Promise.resolve({
+        Contents: [
+          { Key: "Artist/Album/1__Recovered.mp3", LastModified: now },
+        ],
+        IsTruncated: false,
+      });
+    }
+    return Promise.resolve({});
+  });
+
+  try {
+    try {
+      await getUploadedFiles(true);
+      assert(false, "expected the first listing attempt to reject");
+    } catch (error) {
+      assert(error instanceof Error);
+      assertEquals(error.message, "temporary list failure");
+    }
+
+    const files = await getUploadedFiles();
+
+    assertEquals(listCalls, 2);
+    assertEquals(files["Artist"]["Album"].tracks[0].title, "Recovered.mp3");
+  } finally {
+    setSendBehavior(defaultSendBehavior);
+    await getUploadedFiles(true).catch(() => {});
+  }
+});
+
 Deno.test("getUploadedFiles returns empty Files when S3 returns no Contents", async () => {
   setupEnv();
   clearS3SendCalls();
