@@ -109,6 +109,17 @@ function setFileInputFiles(
   );
 }
 
+async function waitForUploadDialogFileItems(
+  dialog: HTMLElement,
+): Promise<void> {
+  const fileItems = dialog.querySelectorAll("upload-dialog-file-item");
+  await Promise.all(
+    Array.from(fileItems).map((item) =>
+      (item as HTMLElement & { metadataReady: Promise<void> }).metadataReady
+    ),
+  );
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -558,6 +569,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadDialogFileItems(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +611,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadDialogFileItems(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +651,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadDialogFileItems(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +703,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadDialogFileItems(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),

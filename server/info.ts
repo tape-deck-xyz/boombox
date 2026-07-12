@@ -93,6 +93,15 @@ export type InfoPayload = {
   schemaVersion: number;
 };
 
+/** Options for regenerating and publishing the catalog document. */
+export interface RegenerateInfoCacheOptions {
+  /**
+   * When true, S3 `info.json` publication must succeed before the function
+   * returns and before local cache files are advanced.
+   */
+  requireS3?: boolean;
+}
+
 /**
  * When unset or not `false`, `GET /info` is available without admin credentials
  * (see `docs/library-catalog-and-info.md`).
@@ -205,11 +214,13 @@ function parsePayloadFromS3Json(text: string): InfoPayload | null {
  *
  * @param req - Request used to derive hostname in the persisted payload
  * @param files - Optional pre-fetched files; if omitted, fetches from S3
+ * @param options - Publication durability settings
  * @returns The generated document
  */
 export async function regenerateInfoCache(
   req: Request,
   files?: Files,
+  options: RegenerateInfoCacheOptions = {},
 ): Promise<InfoPayload> {
   const hostname = catalogHostnameForRequest(req);
   const contents = files ?? await getUploadedFiles(true);
@@ -219,11 +230,17 @@ export async function regenerateInfoCache(
     hostname,
     schemaVersion: INFO_DOCUMENT_SCHEMA_VERSION,
   };
-  await writeInfoCache(payload);
+  assertValidInfoDocument(payload);
+  const bodyText = JSON.stringify(payload);
+
   try {
-    const etag = await putInfoJsonObjectToS3(JSON.stringify(payload));
+    const etag = await putInfoJsonObjectToS3(bodyText);
+    await writeInfoCache(payload);
     await writeStoredS3Etag(etag);
   } catch (e) {
+    if (options.requireS3) {
+      throw e;
+    }
     logger.warn("Could not persist info.json to S3", { error: String(e) });
   }
   return payload;
@@ -302,27 +319,17 @@ export function withRequestHostname(
  * One-shot startup: ensure `info.json` exists in S3 when the bucket is empty of it.
  */
 export async function ensureInfoJsonSeededAtStartup(): Promise<void> {
-  let exists = false;
+  let exists: boolean;
   try {
     const head = await headInfoJsonObjectFromS3();
     exists = head != null;
-  } catch {
-    exists = false;
-  }
-  if (exists) return;
-
-  const local = await readInfoCache();
-  if (local) {
-    try {
-      const etag = await putInfoJsonObjectToS3(JSON.stringify(local));
-      await writeStoredS3Etag(etag);
-    } catch (e) {
-      logger.warn("Startup: could not upload info.json from local cache", {
-        error: String(e),
-      });
-    }
+  } catch (e) {
+    logger.warn("Startup: could not check info.json in S3", {
+      error: String(e),
+    });
     return;
   }
+  if (exists) return;
 
   const req = new Request("http://localhost/");
   try {

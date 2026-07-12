@@ -7,6 +7,10 @@ import {
   setupAdminEnv,
   setupStorageEnv,
 } from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test("Info handler returns 401 when refresh=1 without auth", async () => {
   setupStorageEnv();
@@ -47,6 +51,35 @@ Deno.test("Info handler returns JSON with contents, timestamp, hostname when ref
   assertEquals(typeof body.timestamp, "number");
   assertEquals(body.hostname, "example.com");
   assertEquals(typeof body.schemaVersion, "number");
+});
+
+Deno.test("Info handler returns 503 when refresh cannot publish info.json to S3", async () => {
+  setupStorageEnv();
+  setupAdminEnv();
+  mockFilesWithAlbum();
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("mock S3 put failure"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const req = new Request("http://example.com:8000/info?refresh=1", {
+      method: "GET",
+      headers: { Authorization: createAdminAuthHeader() },
+    });
+    const response = await handleInfo(req, {});
+
+    assertEquals(response.status, 503);
+    assertEquals(await response.text(), "Could not publish info.json to S3");
+  } finally {
+    setSendBehavior(null);
+  }
 });
 
 Deno.test("Info handler uses cache when no refresh param", async () => {

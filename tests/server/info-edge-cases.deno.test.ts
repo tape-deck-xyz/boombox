@@ -1,5 +1,5 @@
 /** @file Branch coverage for {@link ../../server/info.ts} error and edge paths. */
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   createAdminAuthHeader,
   mockFilesWithAlbum,
@@ -19,7 +19,7 @@ import {
   resolveInfoPayloadForGet,
 } from "../../server/info.ts";
 
-Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.json fails", async () => {
+Deno.test("regenerateInfoCache rejects when durable S3 publish is required and PutObject fails", async () => {
   setupStorageEnv();
   mockFilesWithAlbum();
 
@@ -35,11 +35,16 @@ Deno.test("regenerateInfoCache still returns payload when S3 PutObject for info.
 
   try {
     const { regenerateInfoCache } = await import("../../server/info.ts");
-    const payload = await regenerateInfoCache(
-      new Request("http://put-fail.example/"),
+    await assertRejects(
+      () =>
+        regenerateInfoCache(
+          new Request("http://put-fail.example/"),
+          undefined,
+          { requireS3: true },
+        ),
+      Error,
+      "mock S3 put failure",
     );
-    assertEquals(typeof payload.timestamp, "number");
-    assertEquals(typeof payload.contents, "object");
   } finally {
     setSendBehavior(null);
   }
