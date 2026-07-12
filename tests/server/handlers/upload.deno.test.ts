@@ -1,7 +1,55 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
+
+Deno.test("Upload handler returns 500 when post-upload info.json publish fails", async () => {
+  setupStorageEnv();
+  Deno.env.set("ADMIN_USER", ADMIN_USER);
+  Deno.env.set("ADMIN_PASS", ADMIN_PASS);
+
+  setSendBehavior((command: unknown) => {
+    const key = (command as { input?: { Key?: string } }).input?.Key;
+    const name = (command as { constructor: { name: string } }).constructor
+      ?.name;
+    if (name === "PutObjectCommand" && key === "info.json") {
+      return Promise.reject(new Error("mock S3 put failure"));
+    }
+    return defaultS3MockReply(command);
+  });
+
+  try {
+    const file = new File(["test audio content"], "test.mp3", {
+      type: "audio/mpeg",
+    });
+    const formData = new FormData();
+    formData.append("files", file);
+    const req = new Request("http://localhost:8000/", {
+      method: "POST",
+      body: formData,
+      headers: { Authorization: createAdminAuthHeader() },
+    });
+
+    const response = await handleUpload(req);
+
+    assertEquals(response.status, 500);
+    assertEquals(
+      await response.text(),
+      "Upload succeeded but info.json publish failed",
+    );
+  } finally {
+    setSendBehavior(null);
+  }
+});
 
 Deno.test({
   name: "Upload handler tests",
