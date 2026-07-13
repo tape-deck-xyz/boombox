@@ -641,6 +641,85 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "PlaybarCustomElement - ignores stale track-list loads after the current track changes",
+  async () => {
+    const albumOneXml = createS3ListXml([
+      "Artist/Album One/01__Track One.mp3",
+      "Artist/Album One/02__Track Two.mp3",
+    ]);
+    const albumTwoXml = createS3ListXml([
+      "Artist/Album Two/01__Only Track.mp3",
+    ]);
+    let resolveAlbumOneFetch: ((response: Response) => void) | null = null;
+    let albumOneFetchStarted: (() => void) | null = null;
+    const albumOneFetchStartedPromise = new Promise<void>((resolve) => {
+      albumOneFetchStarted = resolve;
+    });
+    const albumOneFetchPromise = new Promise<Response>((resolve) => {
+      resolveAlbumOneFetch = resolve;
+    });
+
+    setupDOMEnvironment({
+      fetch: (input: RequestInfo | URL) => {
+        const url = getFetchUrl(input);
+        if (url.includes("prefix=Artist/Album One/")) {
+          albumOneFetchStarted?.();
+          return albumOneFetchPromise;
+        }
+        if (url.includes("prefix=Artist/Album Two/")) {
+          return Promise.resolve(
+            new Response(albumTwoXml, {
+              headers: { "Content-Type": "application/xml" },
+            }),
+          );
+        }
+        return Promise.resolve(new Response("", { status: 404 }));
+      },
+    });
+    await import("./playbar-custom-element.ts");
+
+    const el = createPlaybar();
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album One/01__Track One.mp3",
+    );
+    await albumOneFetchStartedPromise;
+
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album Two/01__Only Track.mp3",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const controls = getPlayerControls(el);
+    assertExists(controls);
+    assertEquals(
+      controls.getAttribute("data-has-next-track"),
+      "false",
+      "album two has only one track, so next must remain disabled",
+    );
+
+    assert(resolveAlbumOneFetch !== null);
+    resolveAlbumOneFetch(
+      new Response(albumOneXml, {
+        headers: { "Content-Type": "application/xml" },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assertEquals(
+      el.getAttribute("data-current-track-url"),
+      "https://bucket.s3.amazonaws.com/Artist/Album Two/01__Only Track.mp3",
+    );
+    assertEquals(
+      controls.getAttribute("data-has-next-track"),
+      "false",
+      "stale album one load must not re-enable next for album two",
+    );
+  },
+);
+
 Deno.test({
   name: "PlaybarCustomElement - should handle play toggle button click",
   async fn() {

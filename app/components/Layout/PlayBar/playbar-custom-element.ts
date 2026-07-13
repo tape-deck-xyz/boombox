@@ -250,6 +250,7 @@ export class PlaybarCustomElement extends HTMLElement {
     trackNum: number;
   }> = [];
   private loadTracksPromise: Promise<void> | null = null;
+  #trackListLoadToken = 0;
   private audioElement: HTMLAudioElement | null = null;
   private boundTimeUpdate: (event: Event) => void;
   private boundEnded: (event: Event) => void;
@@ -319,9 +320,7 @@ export class PlaybarCustomElement extends HTMLElement {
       // Only update if different to avoid unnecessary re-renders
       if (this.currentTrackUrl !== _newValue) {
         // Cancel any existing load promise since we're changing tracks
-        if (this.loadTracksPromise) {
-          this.loadTracksPromise = null;
-        }
+        this.#invalidateTrackListLoad();
         this.currentTrackUrl = _newValue;
         this.updateAudioSource();
         // Render immediately with current state, then update when tracks load
@@ -341,9 +340,7 @@ export class PlaybarCustomElement extends HTMLElement {
     } else if (name === "data-album-url") {
       if (this.albumUrl !== _newValue) {
         // Cancel any existing load promise since we're changing albums
-        if (this.loadTracksPromise) {
-          this.loadTracksPromise = null;
-        }
+        this.#invalidateTrackListLoad();
         this.albumUrl = _newValue;
         // Render immediately, then update when tracks load
         this.render();
@@ -599,6 +596,19 @@ export class PlaybarCustomElement extends HTMLElement {
     this.render();
   }
 
+  #invalidateTrackListLoad() {
+    this.#trackListLoadToken += 1;
+    this.loadTracksPromise = null;
+  }
+
+  #isCurrentTrackListLoad(
+    loadToken: number,
+    currentTrackUrl: string | null,
+  ): boolean {
+    return this.#trackListLoadToken === loadToken &&
+      this.currentTrackUrl === currentTrackUrl;
+  }
+
   private async loadRemainingTracks() {
     // If already loading, wait for it with a timeout
     if (this.loadTracksPromise) {
@@ -623,39 +633,62 @@ export class PlaybarCustomElement extends HTMLElement {
       return;
     }
 
-    this.loadTracksPromise = (async () => {
-      let effectiveAlbumUrl = this.albumUrl;
-      if (!effectiveAlbumUrl && this.currentTrackUrl) {
-        try {
-          effectiveAlbumUrl = getParentDataFromTrackUrl(
-            this.currentTrackUrl,
-          ).albumUrl;
-        } catch {
-          effectiveAlbumUrl = null;
-        }
-      }
+    const loadToken = this.#trackListLoadToken;
+    const currentTrackUrl = this.currentTrackUrl;
+    let effectiveAlbumUrl = this.albumUrl;
+    if (!effectiveAlbumUrl && currentTrackUrl) {
       try {
-        if (effectiveAlbumUrl && this.currentTrackUrl) {
-          this.remainingTracks = await getRemainingAlbumTracks(
+        effectiveAlbumUrl = getParentDataFromTrackUrl(
+          currentTrackUrl,
+        ).albumUrl;
+      } catch {
+        effectiveAlbumUrl = null;
+      }
+    }
+
+    const loadTracksPromise = Promise.resolve().then(async () => {
+      try {
+        if (effectiveAlbumUrl && currentTrackUrl) {
+          const remainingTracks = await getRemainingAlbumTracks(
             effectiveAlbumUrl,
-            this.currentTrackUrl,
+            currentTrackUrl,
           );
-          await this.loadAllAlbumTracks(effectiveAlbumUrl);
+          if (!this.#isCurrentTrackListLoad(loadToken, currentTrackUrl)) {
+            return;
+          }
+
+          const allAlbumTracks = await this.loadAllAlbumTracks(
+            effectiveAlbumUrl,
+            currentTrackUrl,
+          );
+          if (!this.#isCurrentTrackListLoad(loadToken, currentTrackUrl)) {
+            return;
+          }
+
+          this.remainingTracks = remainingTracks;
+          this.allAlbumTracks = allAlbumTracks;
           this.render();
-        } else {
+        } else if (this.#isCurrentTrackListLoad(loadToken, currentTrackUrl)) {
           this.remainingTracks = [];
           this.allAlbumTracks = [];
         }
       } catch (error) {
+        if (!this.#isCurrentTrackListLoad(loadToken, currentTrackUrl)) {
+          return;
+        }
         console.error("Failed to load remaining tracks:", error);
         this.remainingTracks = [];
         this.allAlbumTracks = [];
       } finally {
-        this.loadTracksPromise = null;
+        if (this.loadTracksPromise === loadTracksPromise) {
+          this.loadTracksPromise = null;
+        }
       }
-    })();
+    });
 
-    return this.loadTracksPromise;
+    this.loadTracksPromise = loadTracksPromise;
+
+    return loadTracksPromise;
   }
 
   /**
@@ -663,16 +696,18 @@ export class PlaybarCustomElement extends HTMLElement {
    * Filters out cover.jpeg files from the track list.
    * @param albumUrlOverride - Optional. When set, used instead of this.albumUrl (e.g. when derived from track URL).
    */
-  private async loadAllAlbumTracks(albumUrlOverride?: string | null) {
+  private async loadAllAlbumTracks(
+    albumUrlOverride?: string | null,
+    currentTrackUrlOverride?: string | null,
+  ) {
     const albumUrl = albumUrlOverride ?? this.albumUrl;
-    if (!albumUrl || !this.currentTrackUrl) {
-      this.allAlbumTracks = [];
-      return;
+    const currentTrackUrl = currentTrackUrlOverride ?? this.currentTrackUrl;
+    if (!albumUrl || !currentTrackUrl) {
+      return [];
     }
-    this.allAlbumTracks =
-      (await getAllAlbumTracks(albumUrl, this.currentTrackUrl)).filter((
-        track,
-      ) => track.title !== "cover.jpeg");
+    return (await getAllAlbumTracks(albumUrl, currentTrackUrl)).filter((
+      track,
+    ) => track.title !== "cover.jpeg");
   }
 
   /**
@@ -686,6 +721,7 @@ export class PlaybarCustomElement extends HTMLElement {
   private async playToggle(trackUrl?: string) {
     if (trackUrl) {
       if (trackUrl !== this.currentTrackUrl) {
+        this.#invalidateTrackListLoad();
         this.currentTrackUrl = trackUrl;
         this.setAttribute("data-current-track-url", trackUrl);
         this.isPlaying = true;
@@ -705,6 +741,7 @@ export class PlaybarCustomElement extends HTMLElement {
       }
     } else {
       // No track URL - stop playback
+      this.#invalidateTrackListLoad();
       this.currentTrackUrl = null;
       this.removeAttribute("data-current-track-url");
       this.pause();
