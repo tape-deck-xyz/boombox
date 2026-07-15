@@ -197,6 +197,9 @@ export async function uploadStreamToS3(
     Bucket: config.STORAGE_BUCKET,
     Key: filename,
     Body: combined,
+    // Metadata-derived keys are deterministic. Refuse to replace an existing
+    // audio object when a duplicate track is uploaded.
+    IfNoneMatch: "*",
   });
 
   try {

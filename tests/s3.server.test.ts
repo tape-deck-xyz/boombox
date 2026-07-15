@@ -140,10 +140,12 @@ Deno.test("uploadStreamToS3 - uploads stream and returns S3 URL", async () => {
         "PutObjectCommand",
   );
   assertEquals(putCalls.length, 1);
-  const input =
-    (putCalls[0].command as { input: { Key: string; Body: unknown } })
-      .input;
+  const input = (putCalls[0].command as {
+    input: { Key: string; Body: unknown; IfNoneMatch?: string };
+  })
+    .input;
   assertEquals(input.Key, "Artist/Album/1__Track.mp3");
+  assertEquals(input.IfNoneMatch, "*");
   const body = input.Body as Uint8Array;
   assertEquals(body.length, 5);
   assertEquals([...body], [1, 2, 3, 4, 5]);
