@@ -959,6 +959,38 @@ Deno.test("handleS3Upload - empty string metadata overrides do not replace serve
   );
 });
 
+Deno.test("handleS3Upload rejects metadata that would add S3 path segments", async () => {
+  setupEnv();
+  clearS3SendCalls();
+  setSendBehavior(defaultSendBehavior);
+  setGetID3TagsReturn({
+    artist: "AC/DC",
+    album: "Back in Black",
+    title: "Hells Bells",
+    trackNumber: 1,
+  });
+
+  await assertRejects(
+    () =>
+      handleS3Upload(
+        "files",
+        "audio/mpeg",
+        (async function* () {
+          yield new Uint8Array([1, 2, 3]);
+        })(),
+      ),
+    Error,
+    'artist must not contain "/"',
+  );
+
+  const putObjectCalls = sendCalls.filter(
+    (call) =>
+      (call.command as { constructor: { name: string } }).constructor?.name ===
+        "PutObjectCommand",
+  );
+  assertEquals(putObjectCalls.length, 0);
+});
+
 Deno.test("handleS3Upload applies metadataOverride when provided with non-empty values", async () => {
   setupEnv();
   clearS3SendCalls();
