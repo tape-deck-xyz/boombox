@@ -6,7 +6,7 @@
  * receive 401 with a Basic Auth challenge.
  */
 import type { ID3Tags } from "../../app/util/id3.ts";
-import { getUploadedFiles, handleS3Upload } from "../../app/util/s3.server.ts";
+import { handleS3Upload } from "../../app/util/s3.server.ts";
 import { regenerateInfoCache } from "../info.ts";
 import { requireAdminAuth } from "../utils/basicAuth.ts";
 
@@ -83,28 +83,23 @@ export async function handleUpload(req: Request): Promise<Response> {
       }
     }
 
-    // Force refresh of file cache and regenerate info cache when uploads succeeded
-    let uploadedFiles;
-    try {
-      uploadedFiles = await getUploadedFiles(true);
-    } catch (error) {
-      console.error("Failed to refresh file cache:", error);
-      // Don't fail the entire request if cache refresh fails
-    }
-
-    if (successCount > 0 && uploadedFiles) {
-      try {
-        await regenerateInfoCache(req, uploadedFiles);
-      } catch (error) {
-        console.error("Failed to regenerate info cache:", error);
-      }
-    }
-
     // If all files failed, return error
     if (successCount === 0 && errors.length > 0) {
       return new Response(`Upload failed for all files: ${errors.join("; ")}`, {
         status: 500,
       });
+    }
+
+    if (successCount > 0) {
+      try {
+        await regenerateInfoCache(req);
+      } catch (error) {
+        console.error("Failed to publish uploaded files to catalog:", error);
+        return new Response(
+          "Upload succeeded but failed to refresh library catalog",
+          { status: 500 },
+        );
+      }
     }
 
     // If some files succeeded, redirect (partial success)

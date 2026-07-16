@@ -109,6 +109,14 @@ function setFileInputFiles(
   );
 }
 
+async function waitForUploadFileItemsMetadata(dialog: Element): Promise<void> {
+  const fileItems = Array.from(
+    dialog.querySelectorAll("upload-dialog-file-item"),
+  ) as unknown as Array<{ metadataReady: Promise<void> }>;
+  await Promise.all(fileItems.map((item) => item.metadataReady));
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -558,6 +566,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadFileItemsMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -599,6 +608,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadFileItemsMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -638,6 +648,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadFileItemsMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),
@@ -689,6 +700,7 @@ Deno.test(
     const mockFile = new File(["x"], "test.mp3", { type: "audio/mpeg" });
     Object.defineProperty(mockFile, "size", { value: 1024 });
     setFileInputFiles(fileInput, [mockFile]);
+    await waitForUploadFileItemsMetadata(dialog);
 
     form.dispatchEvent(
       new linkedomWindow.Event("submit", { cancelable: true, bubbles: true }),

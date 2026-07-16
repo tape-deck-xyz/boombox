@@ -1,7 +1,18 @@
 /** @file Tests for upload route handler */
 import { assert, assertEquals } from "@std/assert";
 import { handleUpload } from "../../../server/handlers/upload.ts";
-import { ADMIN_PASS, ADMIN_USER, createAdminAuthHeader } from "./test-utils.ts";
+import {
+  ADMIN_PASS,
+  ADMIN_USER,
+  createAdminAuthHeader,
+  setupAdminEnv,
+  setupStorageEnv,
+} from "./test-utils.ts";
+import {
+  clearSendCalls,
+  defaultS3MockReply,
+  setSendBehavior,
+} from "../s3.server.test-mocks/s3-client.ts";
 
 Deno.test({
   name: "Upload handler tests",
@@ -175,5 +186,58 @@ Deno.test({
     }
   },
   sanitizeResources: false, // S3Client connections are managed by AWS SDK
+  sanitizeOps: false,
+});
+
+Deno.test({
+  name:
+    "handleUpload returns 500 when catalog publication fails after successful upload",
+  async fn() {
+    setupAdminEnv();
+    setupStorageEnv();
+    clearSendCalls();
+    setSendBehavior((command: unknown) => {
+      const name = (command as { constructor: { name: string } }).constructor
+        ?.name;
+      const key = (command as { input?: { Key?: string } }).input?.Key;
+      if (name === "ListObjectsV2Command") {
+        return Promise.resolve({
+          Contents: [
+            {
+              Key: "Test%20Artist/Test%20Album/1__Test%20Song",
+              LastModified: new Date(),
+            },
+          ],
+          IsTruncated: false,
+        });
+      }
+      if (name === "PutObjectCommand" && key === "info.json") {
+        return Promise.reject(new Error("AccessDenied"));
+      }
+      return defaultS3MockReply(command);
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append(
+        "files",
+        new File(["test audio content"], "test.mp3", {
+          type: "audio/mpeg",
+        }),
+      );
+      const response = await handleUpload(
+        new Request("http://localhost:8000/", {
+          method: "POST",
+          body: formData,
+          headers: { Authorization: createAdminAuthHeader() },
+        }),
+      );
+
+      assertEquals(response.status, 500);
+    } finally {
+      setSendBehavior(null);
+    }
+  },
+  sanitizeResources: false,
   sanitizeOps: false,
 });
