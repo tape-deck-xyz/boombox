@@ -366,6 +366,19 @@ export async function handleS3Upload(
   }
   id3Tags.trackNumber = Math.max(1, id3Tags.trackNumber ?? 1);
 
+  const invalidPathMetadata = (
+    [
+      ["artist", id3Tags.artist],
+      ["album", id3Tags.album],
+      ["title", id3Tags.title],
+    ] as const
+  ).find(([, value]) => value.includes("/"));
+  if (invalidPathMetadata) {
+    throw new Error(
+      `${invalidPathMetadata[0]} must not contain "/"`,
+    );
+  }
+
   // 2. Handle cover image
   if (id3Tags.image) {
     const albumPath = `${id3Tags.artist}/${id3Tags.album}/cover.jpeg`;
