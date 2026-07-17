@@ -251,6 +251,7 @@ export class PlaybarCustomElement extends HTMLElement {
   }> = [];
   private loadTracksPromise: Promise<void> | null = null;
   private audioElement: HTMLAudioElement | null = null;
+  #playbackRequestId = 0;
   private boundTimeUpdate: (event: Event) => void;
   private boundEnded: (event: Event) => void;
   private boundHandlePlayToggle: (event: Event) => void;
@@ -298,6 +299,7 @@ export class PlaybarCustomElement extends HTMLElement {
     this.removeEventListener("play-prev", this.boundHandlePlayPrev);
     this.removeEventListener("seek", this.boundHandleSeek);
     if (this.audioElement) {
+      this.#playbackRequestId++;
       this.audioElement.removeEventListener("timeupdate", this.boundTimeUpdate);
       this.audioElement.removeEventListener("ended", this.boundEnded);
       this.audioElement.pause();
@@ -397,6 +399,7 @@ export class PlaybarCustomElement extends HTMLElement {
   private updateAudioSource() {
     if (!this.audioElement) return;
 
+    this.#playbackRequestId++;
     if (this.currentTrackUrl) {
       this.audioElement.src = this.currentTrackUrl;
       this.nextTrackLoaded = false;
@@ -474,9 +477,17 @@ export class PlaybarCustomElement extends HTMLElement {
   private updateAudioPlayback() {
     if (!this.audioElement || !this.audioElement.src) return;
 
+    const playbackRequestId = ++this.#playbackRequestId;
+    const audioElement = this.audioElement;
     if (this.isPlaying && this.currentTrackUrl) {
       this.mediaSession?.updatePlaybackState("playing");
-      this.audioElement.play().catch((error) => {
+      audioElement.play().catch((error) => {
+        if (
+          playbackRequestId !== this.#playbackRequestId ||
+          audioElement !== this.audioElement
+        ) {
+          return;
+        }
         console.error("Failed to play audio:", error);
         this.isPlaying = false;
         this.setAttribute("data-is-playing", "false");
@@ -487,7 +498,7 @@ export class PlaybarCustomElement extends HTMLElement {
       this.mediaSession?.updatePlaybackState(
         this.currentTrackUrl ? "paused" : "none",
       );
-      this.audioElement.pause();
+      audioElement.pause();
     }
   }
 
