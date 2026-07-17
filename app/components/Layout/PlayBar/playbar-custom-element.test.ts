@@ -1103,3 +1103,52 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "PlaybarCustomElement - should ignore a stale play rejection after switching tracks",
+  async () => {
+    setupDOMEnvironment();
+    await import("./playbar-custom-element.ts");
+
+    const el = createPlaybar();
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album/01__Track One.mp3",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const audio = getAudioElement();
+    assertExists(audio);
+    Object.defineProperty(audio, "readyState", {
+      get: () => 1,
+      configurable: true,
+    });
+
+    let rejectFirstPlay: (reason?: unknown) => void = () => {};
+    let playCalls = 0;
+    audio.play = () => {
+      playCalls++;
+      if (playCalls === 1) {
+        return new Promise<void>((_resolve, reject) => {
+          rejectFirstPlay = reject;
+        });
+      }
+      return Promise.resolve();
+    };
+
+    el.setAttribute("data-is-playing", "true");
+    el.setAttribute(
+      "data-current-track-url",
+      "https://bucket.s3.amazonaws.com/Artist/Album/02__Track Two.mp3",
+    );
+    rejectFirstPlay(new DOMException("Playback interrupted", "AbortError"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assertEquals(playCalls, 2);
+    assertEquals(el.getAttribute("data-is-playing"), "true");
+    assertEquals(
+      el.getAttribute("data-current-track-url"),
+      "https://bucket.s3.amazonaws.com/Artist/Album/02__Track Two.mp3",
+    );
+  },
+);
